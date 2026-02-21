@@ -1,0 +1,21 @@
+[package]
+name = "alice-space"
+version = "0.1.0"
+edition = "2021"
+authors = ["Moroya Sakamoto"]
+description = "ALICE-Space — Deep-space communication, autonomous trajectory control, model-differential protocol"
+license = "AGPL-3.0-only"
+repository = "https://github.com/ext-sakamoro/ALICE-Space"
+
+[dependencies]
+
+[lib]
+name = "alice_space"
+path = "src/lib.rs"
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = true
