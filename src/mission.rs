@@ -1,11 +1,6 @@
 //! Mission planning and event logging.
 
-#[inline(always)]
-fn fnv1a(data: &[u8]) -> u64 {
-    let mut h: u64 = 0xcbf29ce484222325;
-    for &b in data { h ^= b as u64; h = h.wrapping_mul(0x100000001b3); }
-    h
-}
+use crate::fnv1a;
 
 /// Mission phase classification.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -154,5 +149,69 @@ mod tests {
         assert_eq!(log.total_delta_v(), 0.0);
         assert_eq!(log.fuel_efficiency(), 0.0);
         assert!(log.current_phase().is_none());
+    }
+
+    #[test]
+    fn sequence_numbers_monotonic() {
+        let mut log = MissionLog::new();
+        let s0 = log.log_event(MissionPhase::Launch, 1000, 2.5, 500.0);
+        let s1 = log.log_event(MissionPhase::TransferOrbit, 2000, 1.0, 480.0);
+        let s2 = log.log_event(MissionPhase::Insertion, 3000, 0.5, 470.0);
+        assert_eq!(s0, 0);
+        assert_eq!(s1, 1);
+        assert_eq!(s2, 2);
+    }
+
+    #[test]
+    fn events_for_phase_empty_result() {
+        let mut log = MissionLog::new();
+        log.log_event(MissionPhase::Launch, 1000, 2.5, 500.0);
+        let surface = log.events_for_phase(MissionPhase::Surface);
+        assert!(surface.is_empty());
+    }
+
+    #[test]
+    fn content_hash_nonzero() {
+        let mut log = MissionLog::new();
+        log.log_event(MissionPhase::Launch, 1000, 2.5, 500.0);
+        let events = log.events_for_phase(MissionPhase::Launch);
+        assert_ne!(events[0].content_hash, 0);
+    }
+
+    #[test]
+    fn content_hash_varies_with_phase() {
+        let mut log = MissionLog::new();
+        log.log_event(MissionPhase::Launch, 1000, 2.5, 500.0);
+        log.log_event(MissionPhase::Orbiting, 1000, 2.5, 500.0);
+        let launch = log.events_for_phase(MissionPhase::Launch);
+        let orbiting = log.events_for_phase(MissionPhase::Orbiting);
+        assert_ne!(launch[0].content_hash, orbiting[0].content_hash);
+    }
+
+    #[test]
+    fn default_mission_log() {
+        let log = MissionLog::default();
+        assert!(log.is_empty());
+        assert_eq!(log.len(), 0);
+    }
+
+    #[test]
+    fn all_mission_phases_representable() {
+        let mut log = MissionLog::new();
+        let phases = [
+            MissionPhase::Launch,
+            MissionPhase::TransferOrbit,
+            MissionPhase::Insertion,
+            MissionPhase::Orbiting,
+            MissionPhase::Landing,
+            MissionPhase::Surface,
+            MissionPhase::Ascent,
+            MissionPhase::Return,
+        ];
+        for (i, &phase) in phases.iter().enumerate() {
+            log.log_event(phase, i as u64 * 1000, 0.1, 500.0 - i as f64);
+        }
+        assert_eq!(log.len(), 8);
+        assert_eq!(log.current_phase(), Some(&MissionPhase::Return));
     }
 }

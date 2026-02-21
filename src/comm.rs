@@ -1,13 +1,7 @@
 //! Deep-space communication protocol — model differentials over minimal bandwidth.
 
+use crate::fnv1a;
 use crate::orbit::BodyId;
-
-#[inline(always)]
-fn fnv1a(data: &[u8]) -> u64 {
-    let mut h: u64 = 0xcbf29ce484222325;
-    for &b in data { h ^= b as u64; h = h.wrapping_mul(0x100000001b3); }
-    h
-}
 
 /// Communication link between two bodies.
 #[derive(Debug, Clone)]
@@ -130,5 +124,77 @@ mod tests {
         d2.finalize();
         assert_eq!(d1.content_hash, d2.content_hash);
         assert_ne!(d1.content_hash, 0);
+    }
+
+    #[test]
+    fn finalize_different_params_different_hash() {
+        let mut d1 = ModelDifferential::new(1, 1000);
+        d1.add_param("thrust_x", 3.14);
+        d1.finalize();
+        let mut d2 = ModelDifferential::new(1, 1000);
+        d2.add_param("thrust_y", 3.14);
+        d2.finalize();
+        assert_ne!(d1.content_hash, d2.content_hash);
+    }
+
+    #[test]
+    fn finalize_different_values_different_hash() {
+        let mut d1 = ModelDifferential::new(1, 1000);
+        d1.add_param("thrust_x", 1.0);
+        d1.finalize();
+        let mut d2 = ModelDifferential::new(1, 1000);
+        d2.add_param("thrust_x", 2.0);
+        d2.finalize();
+        assert_ne!(d1.content_hash, d2.content_hash);
+    }
+
+    #[test]
+    fn empty_differential_byte_size() {
+        let diff = ModelDifferential::new(0, 0);
+        assert_eq!(diff.byte_size(), 24);
+    }
+
+    #[test]
+    fn differential_multiple_params_byte_size() {
+        let mut diff = ModelDifferential::new(1, 100);
+        for i in 0usize..10 {
+            diff.add_param(&format!("p{i}"), i as f64);
+        }
+        // 24 base + 10 * 16 = 184
+        assert_eq!(diff.byte_size(), 184);
+    }
+
+    #[test]
+    fn link_latency_deep_space() {
+        // Mars average distance: ~225 million km → ~750 s
+        let link = CommLink::new(1, 2, 225_000_000.0, 1000.0);
+        let latency = link.latency_s();
+        assert!((latency - 750.5).abs() < 2.0, "Mars latency: {} s", latency);
+    }
+
+    #[test]
+    fn can_transmit_exact_boundary() {
+        // Exact boundary: diff size = link capacity
+        let mut diff = ModelDifferential::new(1, 100);
+        diff.add_param("x", 1.0);
+        // 40 bytes = 320 bits; need exactly 320 bps in 1s window
+        let link = CommLink::new(1, 2, 1000.0, 320.0);
+        assert!(can_transmit(&diff, &link, 1.0));
+    }
+
+    #[test]
+    fn can_transmit_just_below_boundary() {
+        let mut diff = ModelDifferential::new(1, 100);
+        diff.add_param("x", 1.0);
+        // 40 bytes = 320 bits; 319 bps not enough in 1s
+        let link = CommLink::new(1, 2, 1000.0, 319.0);
+        assert!(!can_transmit(&diff, &link, 1.0));
+    }
+
+    #[test]
+    fn comm_link_source_target_ids() {
+        let link = CommLink::new(10, 20, 500.0, 9600.0);
+        assert_eq!(link.source_id, BodyId(10));
+        assert_eq!(link.target_id, BodyId(20));
     }
 }

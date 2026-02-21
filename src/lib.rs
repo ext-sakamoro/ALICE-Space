@@ -15,13 +15,33 @@
 //! let delay = light_delay_s(384400.0);
 //! assert!((delay - 1.28).abs() < 0.01);
 //! ```
+//!
+//! Author: Moroya Sakamoto
 
-pub mod orbit;
-pub mod comm;
 pub mod autonomy;
+pub mod comm;
+pub mod constellation;
+pub mod link_budget;
 pub mod mission;
+pub mod orbit;
+pub mod propagator;
 
-pub use orbit::{BodyId, OrbitalElements, CelestialBody, SpacecraftState, orbital_period, orbital_velocity, delta_v_hohmann, light_delay_s};
-pub use comm::{CommLink, ModelDifferential, can_transmit};
-pub use autonomy::{AutonomyLevel, TrajectoryModel, ControlDecision, apply_differential, compute_correction};
-pub use mission::{MissionPhase, MissionEvent, MissionLog};
+pub use autonomy::{apply_differential, compute_correction, evaluate_decision_tree, AutonomyLevel, ControlDecision, DecisionNode, FaultType, TrajectoryModel};
+pub use comm::{can_transmit, CommLink, ModelDifferential};
+pub use constellation::{WalkerConstellation, WalkerSatellite};
+pub use link_budget::{friis_path_loss_db, LinkBudget, LinkBudgetResult};
+pub use mission::{MissionEvent, MissionLog, MissionPhase};
+pub use orbit::{delta_v_hohmann, light_delay_s, orbital_period, orbital_velocity, BodyId, CelestialBody, OrbitalElements, SpacecraftState};
+pub use propagator::{propagate_rk4, propagate_rk4_single, TwoBodyAccel};
+
+// ── Shared hash primitive ──────────────────────────────────────────────
+
+#[inline(always)]
+pub(crate) fn fnv1a(data: &[u8]) -> u64 {
+    let mut h: u64 = 0xcbf29ce484222325;
+    for &b in data {
+        h ^= b as u64;
+        h = h.wrapping_mul(0x100000001b3);
+    }
+    h
+}

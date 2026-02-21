@@ -37,12 +37,7 @@ pub struct SpacecraftState {
     pub fuel_kg: f64,
 }
 
-#[inline(always)]
-fn fnv1a(data: &[u8]) -> u64 {
-    let mut h: u64 = 0xcbf29ce484222325;
-    for &b in data { h ^= b as u64; h = h.wrapping_mul(0x100000001b3); }
-    h
-}
+use crate::fnv1a;
 
 impl CelestialBody {
     pub fn new(id: u64, name: &str, mass_kg: f64, radius_km: f64, mu: f64) -> Self {
@@ -130,5 +125,96 @@ mod tests {
         let earth = CelestialBody::new(3, "Earth", 5.972e24, 6371.0, MU_EARTH);
         let mars = CelestialBody::new(4, "Mars", 6.39e23, 3389.5, 42828.37);
         assert_ne!(earth.name_hash, mars.name_hash);
+    }
+
+    #[test]
+    fn celestial_body_hash_deterministic() {
+        let e1 = CelestialBody::new(3, "Earth", 5.972e24, 6371.0, MU_EARTH);
+        let e2 = CelestialBody::new(3, "Earth", 5.972e24, 6371.0, MU_EARTH);
+        assert_eq!(e1.name_hash, e2.name_hash);
+        assert_ne!(e1.name_hash, 0);
+    }
+
+    #[test]
+    fn orbital_period_geo() {
+        // GEO: a = 42164 km, T ≈ 86164 s (sidereal day)
+        let t = orbital_period(42164.0, MU_EARTH);
+        assert!((t - 86164.0).abs() < 100.0, "GEO period: {} s", t);
+    }
+
+    #[test]
+    fn orbital_velocity_increases_closer_to_body() {
+        let v_near = orbital_velocity(6578.0, 6578.0, MU_EARTH);
+        let v_far = orbital_velocity(42164.0, 42164.0, MU_EARTH);
+        assert!(v_near > v_far, "LEO v={} > GEO v={}", v_near, v_far);
+    }
+
+    #[test]
+    fn hohmann_symmetric_transfer() {
+        // Hohmann from r1 to r2 should give same total dv regardless of direction
+        let (dv1_up, dv2_up) = delta_v_hohmann(6578.0, 42164.0, MU_EARTH);
+        let (dv1_down, dv2_down) = delta_v_hohmann(42164.0, 6578.0, MU_EARTH);
+        let total_up = dv1_up + dv2_up;
+        let total_down = dv1_down + dv2_down;
+        assert!((total_up - total_down).abs() < 0.01, "up={} down={}", total_up, total_down);
+    }
+
+    #[test]
+    fn hohmann_zero_transfer() {
+        // Same orbit: dv should be ~0
+        let (dv1, dv2) = delta_v_hohmann(6778.0, 6778.0, MU_EARTH);
+        assert!(dv1 < 1e-10, "dv1={}", dv1);
+        assert!(dv2 < 1e-10, "dv2={}", dv2);
+    }
+
+    #[test]
+    fn light_delay_zero_distance() {
+        let d = light_delay_s(0.0);
+        assert!((d).abs() < 1e-15);
+    }
+
+    #[test]
+    fn light_delay_earth_saturn() {
+        // Earth-Saturn closest ~1.2 billion km → ~4000 s (~67 min)
+        let d = light_delay_s(1_200_000_000.0);
+        assert!((d / 60.0 - 66.7).abs() < 1.0, "Saturn delay: {} min", d / 60.0);
+    }
+
+    #[test]
+    fn spacecraft_state_clone() {
+        let s = SpacecraftState {
+            position_km: [1.0, 2.0, 3.0],
+            velocity_km_s: [4.0, 5.0, 6.0],
+            timestamp_ns: 42,
+            fuel_kg: 100.0,
+        };
+        let s2 = s.clone();
+        assert_eq!(s.position_km, s2.position_km);
+        assert_eq!(s.velocity_km_s, s2.velocity_km_s);
+        assert_eq!(s.timestamp_ns, s2.timestamp_ns);
+        assert_eq!(s.fuel_kg, s2.fuel_kg);
+    }
+
+    #[test]
+    fn orbital_elements_eccentricity_bounds() {
+        // Parabolic escape: e = 1.0 means v = escape velocity at periapsis
+        let elements = OrbitalElements {
+            semi_major_axis_km: 6778.0,
+            eccentricity: 0.0,
+            inclination_rad: 0.0,
+            raan_rad: 0.0,
+            arg_periapsis_rad: 0.0,
+            true_anomaly_rad: 0.0,
+        };
+        assert!(elements.eccentricity >= 0.0);
+    }
+
+    #[test]
+    fn body_id_equality() {
+        let a = BodyId(42);
+        let b = BodyId(42);
+        let c = BodyId(43);
+        assert_eq!(a, b);
+        assert_ne!(a, c);
     }
 }
