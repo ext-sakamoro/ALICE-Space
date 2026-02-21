@@ -16,7 +16,7 @@ pub enum AutonomyLevel {
 /// Polynomial trajectory model: position as f(t).
 #[derive(Debug, Clone)]
 pub struct TrajectoryModel {
-    /// Coefficients in groups of 3 (x, y, z): [x0, y0, z0, vx, vy, vz, ax, ay, az, ...]
+    /// Coefficients in groups of 3 (x, y, z): \[x0, y0, z0, vx, vy, vz, ax, ay, az, ...\]
     pub coefficients: Vec<f64>,
     pub epoch_ns: u64,
     pub valid_duration_ns: u64,
@@ -28,28 +28,28 @@ impl TrajectoryModel {
     }
 
     /// Evaluate position at time t_ns.
-    /// x(t) = c[0] + c[3]*dt + c[6]*dt², etc.
+    /// x(t) = c\[0\] + c\[3\]\*dt + c\[6\]\*dt², etc.
     pub fn evaluate(&self, t_ns: u64) -> [f64; 3] {
         let dt = (t_ns.saturating_sub(self.epoch_ns)) as f64 / 1e9;
         let mut pos = [0.0; 3];
 
         // Constant terms (c[0], c[1], c[2])
-        for i in 0..3 {
+        for (i, p) in pos.iter_mut().enumerate() {
             if i < self.coefficients.len() {
-                pos[i] = self.coefficients[i];
+                *p = self.coefficients[i];
             }
         }
         // Linear terms (c[3], c[4], c[5])
-        for i in 0..3 {
+        for (i, p) in pos.iter_mut().enumerate() {
             if 3 + i < self.coefficients.len() {
-                pos[i] += self.coefficients[3 + i] * dt;
+                *p += self.coefficients[3 + i] * dt;
             }
         }
         // Quadratic terms (c[6], c[7], c[8])
         let dt2 = dt * dt;
-        for i in 0..3 {
+        for (i, p) in pos.iter_mut().enumerate() {
             if 6 + i < self.coefficients.len() {
-                pos[i] += self.coefficients[6 + i] * dt2;
+                *p += self.coefficients[6 + i] * dt2;
             }
         }
         pos
@@ -93,9 +93,10 @@ pub fn compute_correction(current: &SpacecraftState, model: &TrajectoryModel, t_
     ];
     let error_magnitude = (error[0] * error[0] + error[1] * error[1] + error[2] * error[2]).sqrt();
 
-    // Thrust proportional to error, normalized
+    // Thrust proportional to error, normalized — precompute reciprocal to avoid 3 divisions
     let thrust = if error_magnitude > 1e-10 {
-        [error[0] / error_magnitude, error[1] / error_magnitude, error[2] / error_magnitude]
+        let rcp = 1.0 / error_magnitude;
+        [error[0] * rcp, error[1] * rcp, error[2] * rcp]
     } else {
         [0.0, 0.0, 0.0]
     };
