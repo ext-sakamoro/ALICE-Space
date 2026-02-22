@@ -47,7 +47,12 @@ pub struct ModelDifferential {
 
 impl ModelDifferential {
     pub fn new(sequence: u64, timestamp_ns: u64) -> Self {
-        Self { sequence, timestamp_ns, param_updates: Vec::new(), content_hash: 0 }
+        Self {
+            sequence,
+            timestamp_ns,
+            param_updates: Vec::new(),
+            content_hash: 0,
+        }
     }
 
     /// Add a parameter update (name is hashed via FNV-1a).

@@ -4,6 +4,20 @@
 //! and minimal bandwidth (kbps), enabling autonomous spacecraft control via
 //! mathematical model differentials rather than raw data transmission.
 //!
+//! # Modules
+//!
+//! | Module | Description |
+//! |--------|-------------|
+//! | [`orbit`] | Keplerian elements, Hohmann transfer, light delay, celestial bodies |
+//! | [`propagator`] | RK4 two-body orbit propagation |
+//! | [`autonomy`] | Trajectory models, fault detection, control decisions |
+//! | [`comm`] | Deep-space comm links, model-differential protocol |
+//! | [`constellation`] | Walker constellation geometry |
+//! | [`link_budget`] | Friis path-loss and link margin calculation |
+//! | [`mission`] | Mission phase FSM and event logging |
+//!
+//! # Quick Start
+//!
 //! ```
 //! use alice_space::{orbital_period, light_delay_s};
 //!
@@ -26,12 +40,18 @@ pub mod mission;
 pub mod orbit;
 pub mod propagator;
 
-pub use autonomy::{apply_differential, compute_correction, evaluate_decision_tree, AutonomyLevel, ControlDecision, DecisionNode, FaultType, TrajectoryModel};
+pub use autonomy::{
+    apply_differential, compute_correction, evaluate_decision_tree, AutonomyLevel, ControlDecision,
+    DecisionNode, FaultType, TrajectoryModel,
+};
 pub use comm::{can_transmit, CommLink, ModelDifferential};
 pub use constellation::{WalkerConstellation, WalkerSatellite};
 pub use link_budget::{friis_path_loss_db, LinkBudget, LinkBudgetResult};
 pub use mission::{MissionEvent, MissionLog, MissionPhase};
-pub use orbit::{delta_v_hohmann, light_delay_s, orbital_period, orbital_velocity, BodyId, CelestialBody, OrbitalElements, SpacecraftState};
+pub use orbit::{
+    delta_v_hohmann, light_delay_s, orbital_period, orbital_velocity, BodyId, CelestialBody,
+    OrbitalElements, SpacecraftState,
+};
 pub use propagator::{propagate_rk4, propagate_rk4_single, TwoBodyAccel};
 
 // ── Shared hash primitive ──────────────────────────────────────────────

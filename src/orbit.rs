@@ -41,7 +41,13 @@ use crate::fnv1a;
 
 impl CelestialBody {
     pub fn new(id: u64, name: &str, mass_kg: f64, radius_km: f64, mu: f64) -> Self {
-        Self { id: BodyId(id), name_hash: fnv1a(name.as_bytes()), mass_kg, radius_km, mu }
+        Self {
+            id: BodyId(id),
+            name_hash: fnv1a(name.as_bytes()),
+            mass_kg,
+            radius_km,
+            mu,
+        }
     }
 }
 
@@ -156,7 +162,12 @@ mod tests {
         let (dv1_down, dv2_down) = delta_v_hohmann(42164.0, 6578.0, MU_EARTH);
         let total_up = dv1_up + dv2_up;
         let total_down = dv1_down + dv2_down;
-        assert!((total_up - total_down).abs() < 0.01, "up={} down={}", total_up, total_down);
+        assert!(
+            (total_up - total_down).abs() < 0.01,
+            "up={} down={}",
+            total_up,
+            total_down
+        );
     }
 
     #[test]
@@ -177,7 +188,11 @@ mod tests {
     fn light_delay_earth_saturn() {
         // Earth-Saturn closest ~1.2 billion km → ~4000 s (~67 min)
         let d = light_delay_s(1_200_000_000.0);
-        assert!((d / 60.0 - 66.7).abs() < 1.0, "Saturn delay: {} min", d / 60.0);
+        assert!(
+            (d / 60.0 - 66.7).abs() < 1.0,
+            "Saturn delay: {} min",
+            d / 60.0
+        );
     }
 
     #[test]

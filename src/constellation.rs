@@ -6,9 +6,9 @@
 //!
 //! Author: Moroya Sakamoto
 
-use std::f64::consts::PI;
 use crate::fnv1a;
 use crate::orbit::OrbitalElements;
+use std::f64::consts::PI;
 
 /// Walker Delta constellation configuration.
 ///
@@ -50,13 +50,7 @@ pub struct WalkerSatellite {
 
 impl WalkerConstellation {
     /// Create a new Walker Delta constellation.
-    pub fn new(
-        total: u32,
-        planes: u32,
-        phasing: u32,
-        sma_km: f64,
-        inc_rad: f64,
-    ) -> Self {
+    pub fn new(total: u32, planes: u32, phasing: u32, sma_km: f64, inc_rad: f64) -> Self {
         Self {
             total_satellites: total,
             num_planes: planes,
@@ -101,7 +95,11 @@ impl WalkerConstellation {
                 let base_anomaly = delta_anomaly * s as f64;
                 let phased_anomaly = base_anomaly + phase_offset * p as f64;
                 // Normalize to [0, 2π)
-                let true_anomaly = if two_pi > 0.0 { phased_anomaly % two_pi } else { 0.0 };
+                let true_anomaly = if two_pi > 0.0 {
+                    phased_anomaly % two_pi
+                } else {
+                    0.0
+                };
 
                 let elements = OrbitalElements {
                     semi_major_axis_km: self.semi_major_axis_km,
@@ -196,9 +194,11 @@ mod tests {
     fn gps_constellation_24_6_1() {
         // GPS: 24/6/1, MEO, ~55° inclination
         let walker = WalkerConstellation::new(
-            24, 6, 1,
-            26559.7,                // GPS semi-major axis
-            55.0 * PI / 180.0,     // 55° inclination
+            24,
+            6,
+            1,
+            26559.7,           // GPS semi-major axis
+            55.0 * PI / 180.0, // 55° inclination
         );
         let sats = walker.generate();
         assert_eq!(sats.len(), 24);
@@ -339,7 +339,11 @@ mod tests {
         // SMA below Earth radius → altitude < 0 → should return 0.0
         let walker = WalkerConstellation::new(10, 2, 0, 5000.0, 0.5);
         let el = walker.min_elevation_equator_deg();
-        assert!((el).abs() < 1e-10, "Below surface should give 0, got {}", el);
+        assert!(
+            (el).abs() < 1e-10,
+            "Below surface should give 0, got {}",
+            el
+        );
     }
 
     #[test]

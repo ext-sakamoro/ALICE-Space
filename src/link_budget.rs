@@ -5,8 +5,8 @@
 //!
 //! Author: Moroya Sakamoto
 
-use std::f64::consts::PI;
 use crate::fnv1a;
+use std::f64::consts::PI;
 
 /// Speed of light in km/s.
 const C_KM_S: f64 = 299792.458;
@@ -54,14 +54,14 @@ pub struct LinkBudget {
 impl Default for LinkBudget {
     fn default() -> Self {
         Self {
-            tx_power_dbw: 20.0,         // 100 W
-            tx_gain_dbi: 40.0,          // Deep-space high-gain antenna
-            rx_gain_dbi: 70.0,          // DSN 70m dish
-            frequency_ghz: 8.4,         // X-band
-            distance_km: 384400.0,      // Earth-Moon
-            system_noise_temp_k: 25.0,  // Cryogenic LNA
-            data_rate_bps: 1000.0,      // 1 kbps
-            required_eb_n0_db: 3.0,     // BPSK threshold
+            tx_power_dbw: 20.0,        // 100 W
+            tx_gain_dbi: 40.0,         // Deep-space high-gain antenna
+            rx_gain_dbi: 70.0,         // DSN 70m dish
+            frequency_ghz: 8.4,        // X-band
+            distance_km: 384400.0,     // Earth-Moon
+            system_noise_temp_k: 25.0, // Cryogenic LNA
+            data_rate_bps: 1000.0,     // 1 kbps
+            required_eb_n0_db: 3.0,    // BPSK threshold
             implementation_loss_db: 2.0,
         }
     }
@@ -230,7 +230,12 @@ mod tests {
     fn max_data_rate_positive() {
         let lb = LinkBudget::default();
         let max_rate = lb.max_data_rate_bps();
-        assert!(max_rate > lb.data_rate_bps, "Max rate {} should exceed configured {}", max_rate, lb.data_rate_bps);
+        assert!(
+            max_rate > lb.data_rate_bps,
+            "Max rate {} should exceed configured {}",
+            max_rate,
+            lb.data_rate_bps
+        );
     }
 
     #[test]
@@ -266,8 +271,14 @@ mod tests {
 
     #[test]
     fn content_hash_changes_with_distance() {
-        let lb1 = LinkBudget { distance_km: 384400.0, ..Default::default() };
-        let lb2 = LinkBudget { distance_km: 778_500_000.0, ..Default::default() };
+        let lb1 = LinkBudget {
+            distance_km: 384400.0,
+            ..Default::default()
+        };
+        let lb2 = LinkBudget {
+            distance_km: 778_500_000.0,
+            ..Default::default()
+        };
         let r1 = lb1.compute();
         let r2 = lb2.compute();
         assert_ne!(r1.content_hash, r2.content_hash);
@@ -278,6 +289,10 @@ mod tests {
         // Doubling distance adds ~6 dB of path loss (20*log10(2) ≈ 6.02)
         let loss1 = friis_path_loss_db(10000.0, 8.4);
         let loss2 = friis_path_loss_db(20000.0, 8.4);
-        assert!((loss2 - loss1 - 6.02).abs() < 0.1, "6dB rule: diff={}", loss2 - loss1);
+        assert!(
+            (loss2 - loss1 - 6.02).abs() < 0.1,
+            "6dB rule: diff={}",
+            loss2 - loss1
+        );
     }
 }

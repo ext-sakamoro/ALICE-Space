@@ -35,11 +35,20 @@ pub struct MissionLog {
 
 impl MissionLog {
     pub fn new() -> Self {
-        Self { events: Vec::new(), next_sequence: 0 }
+        Self {
+            events: Vec::new(),
+            next_sequence: 0,
+        }
     }
 
     /// Log a mission event, returns sequence number.
-    pub fn log_event(&mut self, phase: MissionPhase, timestamp_ns: u64, delta_v: f64, fuel_kg: f64) -> u32 {
+    pub fn log_event(
+        &mut self,
+        phase: MissionPhase,
+        timestamp_ns: u64,
+        delta_v: f64,
+        fuel_kg: f64,
+    ) -> u32 {
         let seq = self.next_sequence;
         let mut hash_data = [0u8; 25];
         hash_data[0..4].copy_from_slice(&seq.to_le_bytes());
@@ -77,7 +86,9 @@ impl MissionLog {
 
     /// Average delta-v per event (fuel efficiency metric).
     pub fn fuel_efficiency(&self) -> f64 {
-        if self.events.is_empty() { return 0.0; }
+        if self.events.is_empty() {
+            return 0.0;
+        }
         self.total_delta_v() / self.events.len() as f64
     }
 
@@ -93,7 +104,9 @@ impl MissionLog {
 }
 
 impl Default for MissionLog {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[cfg(test)]

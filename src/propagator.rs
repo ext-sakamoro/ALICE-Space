@@ -66,8 +66,12 @@ fn scale(s: &State6, h: f64) -> State6 {
 #[inline]
 fn add(a: &State6, b: &State6) -> State6 {
     [
-        a[0] + b[0], a[1] + b[1], a[2] + b[2],
-        a[3] + b[3], a[4] + b[4], a[5] + b[5],
+        a[0] + b[0],
+        a[1] + b[1],
+        a[2] + b[2],
+        a[3] + b[3],
+        a[4] + b[4],
+        a[5] + b[5],
     ]
 }
 
@@ -95,11 +99,7 @@ fn rk4_step(state: &State6, dt: f64, accel: &TwoBodyAccel) -> State6 {
 /// Propagate a single RK4 step from a `SpacecraftState`.
 ///
 /// Returns the state after `dt_s` seconds. Fuel is unchanged.
-pub fn propagate_rk4_single(
-    state: &SpacecraftState,
-    mu: f64,
-    dt_s: f64,
-) -> SpacecraftState {
+pub fn propagate_rk4_single(state: &SpacecraftState, mu: f64, dt_s: f64) -> SpacecraftState {
     let accel = TwoBodyAccel::new(mu);
     let s = pack(&state.position_km, &state.velocity_km_s);
     let s_new = rk4_step(&s, dt_s, &accel);
@@ -241,8 +241,14 @@ mod tests {
         let trajectory = propagate_rk4(&state, MU_EARTH, 30.0, 50);
 
         for s in &trajectory {
-            let r = (s.position_km[0].powi(2) + s.position_km[1].powi(2) + s.position_km[2].powi(2)).sqrt();
-            assert!((r - r_initial).abs() < 0.1, "Radius drift: {} km", (r - r_initial).abs());
+            let r =
+                (s.position_km[0].powi(2) + s.position_km[1].powi(2) + s.position_km[2].powi(2))
+                    .sqrt();
+            assert!(
+                (r - r_initial).abs() < 0.1,
+                "Radius drift: {} km",
+                (r - r_initial).abs()
+            );
         }
     }
 
@@ -333,6 +339,10 @@ mod tests {
         let v_escape = (2.0 * MU_EARTH / r).sqrt();
         let v = v_escape * 1.1; // above escape velocity
         let e = specific_energy(&[r, 0.0, 0.0], &[0.0, v, 0.0], MU_EARTH);
-        assert!(e > 0.0, "Escape trajectory should have positive energy: {}", e);
+        assert!(
+            e > 0.0,
+            "Escape trajectory should have positive energy: {}",
+            e
+        );
     }
 }

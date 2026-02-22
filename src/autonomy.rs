@@ -1,7 +1,7 @@
 //! Autonomous spacecraft control — trajectory models and correction decisions.
 
-use crate::orbit::SpacecraftState;
 use crate::comm::ModelDifferential;
+use crate::orbit::SpacecraftState;
 
 /// Autonomy level classification.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -24,7 +24,11 @@ pub struct TrajectoryModel {
 
 impl TrajectoryModel {
     pub fn new(coefficients: Vec<f64>, epoch_ns: u64, valid_ns: u64) -> Self {
-        Self { coefficients, epoch_ns, valid_duration_ns: valid_ns }
+        Self {
+            coefficients,
+            epoch_ns,
+            valid_duration_ns: valid_ns,
+        }
     }
 
     /// Evaluate position at time t_ns.
@@ -111,11 +115,9 @@ pub fn evaluate_decision_tree(readings: &[f64], tree: &[DecisionNode]) -> (Fault
 
     for (reading, node) in readings.iter().zip(tree.iter()) {
         let abs_reading = reading.abs();
-        if abs_reading > node.threshold {
-            if node.severity > worst_severity {
-                worst_severity = node.severity;
-                worst_fault = node.fault;
-            }
+        if abs_reading > node.threshold && node.severity > worst_severity {
+            worst_severity = node.severity;
+            worst_fault = node.fault;
         }
     }
     (worst_fault, worst_severity)
@@ -132,7 +134,11 @@ pub struct ControlDecision {
 }
 
 /// Compute correction to align current state with model prediction.
-pub fn compute_correction(current: &SpacecraftState, model: &TrajectoryModel, t_ns: u64) -> ControlDecision {
+pub fn compute_correction(
+    current: &SpacecraftState,
+    model: &TrajectoryModel,
+    t_ns: u64,
+) -> ControlDecision {
     let predicted = model.evaluate(t_ns);
     let error = [
         predicted[0] - current.position_km[0],
@@ -227,9 +233,21 @@ mod tests {
     fn fault_type_nominal_default() {
         let readings = [0.1, 0.2, 0.05];
         let tree = vec![
-            DecisionNode { threshold: 1.0, fault: FaultType::SensorAnomaly, severity: 0.5 },
-            DecisionNode { threshold: 1.0, fault: FaultType::ThrusterDegradation, severity: 0.7 },
-            DecisionNode { threshold: 1.0, fault: FaultType::PowerAnomaly, severity: 0.9 },
+            DecisionNode {
+                threshold: 1.0,
+                fault: FaultType::SensorAnomaly,
+                severity: 0.5,
+            },
+            DecisionNode {
+                threshold: 1.0,
+                fault: FaultType::ThrusterDegradation,
+                severity: 0.7,
+            },
+            DecisionNode {
+                threshold: 1.0,
+                fault: FaultType::PowerAnomaly,
+                severity: 0.9,
+            },
         ];
         let (fault, sev) = evaluate_decision_tree(&readings, &tree);
         assert_eq!(fault, FaultType::Nominal);
@@ -240,9 +258,21 @@ mod tests {
     fn fault_type_single_trigger() {
         let readings = [0.1, 5.0, 0.05];
         let tree = vec![
-            DecisionNode { threshold: 1.0, fault: FaultType::SensorAnomaly, severity: 0.5 },
-            DecisionNode { threshold: 1.0, fault: FaultType::ThrusterDegradation, severity: 0.7 },
-            DecisionNode { threshold: 1.0, fault: FaultType::PowerAnomaly, severity: 0.9 },
+            DecisionNode {
+                threshold: 1.0,
+                fault: FaultType::SensorAnomaly,
+                severity: 0.5,
+            },
+            DecisionNode {
+                threshold: 1.0,
+                fault: FaultType::ThrusterDegradation,
+                severity: 0.7,
+            },
+            DecisionNode {
+                threshold: 1.0,
+                fault: FaultType::PowerAnomaly,
+                severity: 0.9,
+            },
         ];
         let (fault, sev) = evaluate_decision_tree(&readings, &tree);
         assert_eq!(fault, FaultType::ThrusterDegradation);
@@ -253,9 +283,21 @@ mod tests {
     fn fault_type_highest_severity_wins() {
         let readings = [5.0, 5.0, 5.0];
         let tree = vec![
-            DecisionNode { threshold: 1.0, fault: FaultType::SensorAnomaly, severity: 0.5 },
-            DecisionNode { threshold: 1.0, fault: FaultType::ThrusterDegradation, severity: 0.7 },
-            DecisionNode { threshold: 1.0, fault: FaultType::PowerAnomaly, severity: 0.9 },
+            DecisionNode {
+                threshold: 1.0,
+                fault: FaultType::SensorAnomaly,
+                severity: 0.5,
+            },
+            DecisionNode {
+                threshold: 1.0,
+                fault: FaultType::ThrusterDegradation,
+                severity: 0.7,
+            },
+            DecisionNode {
+                threshold: 1.0,
+                fault: FaultType::PowerAnomaly,
+                severity: 0.9,
+            },
         ];
         let (fault, sev) = evaluate_decision_tree(&readings, &tree);
         assert_eq!(fault, FaultType::PowerAnomaly);
@@ -265,9 +307,11 @@ mod tests {
     #[test]
     fn fault_type_negative_reading() {
         let readings = [-5.0];
-        let tree = vec![
-            DecisionNode { threshold: 1.0, fault: FaultType::AttitudeError, severity: 0.8 },
-        ];
+        let tree = vec![DecisionNode {
+            threshold: 1.0,
+            fault: FaultType::AttitudeError,
+            severity: 0.8,
+        }];
         let (fault, _) = evaluate_decision_tree(&readings, &tree);
         assert_eq!(fault, FaultType::AttitudeError);
     }
@@ -282,9 +326,11 @@ mod tests {
     #[test]
     fn fault_type_mismatched_lengths() {
         let readings = [5.0, 5.0, 5.0, 5.0, 5.0];
-        let tree = vec![
-            DecisionNode { threshold: 1.0, fault: FaultType::CommLinkLoss, severity: 0.6 },
-        ];
+        let tree = vec![DecisionNode {
+            threshold: 1.0,
+            fault: FaultType::CommLinkLoss,
+            severity: 0.6,
+        }];
         let (fault, sev) = evaluate_decision_tree(&readings, &tree);
         assert_eq!(fault, FaultType::CommLinkLoss);
         assert!((sev - 0.6).abs() < 1e-10);
@@ -383,8 +429,14 @@ mod tests {
         };
         let model = TrajectoryModel::new(vec![300.0, 400.0, 0.0], 0, 1_000_000_000);
         let d = compute_correction(&state, &model, 0);
-        let mag = (d.thrust_vector[0].powi(2) + d.thrust_vector[1].powi(2) + d.thrust_vector[2].powi(2)).sqrt();
-        assert!((mag - 1.0).abs() < 1e-10, "Thrust should be unit vector, mag={}", mag);
+        let mag =
+            (d.thrust_vector[0].powi(2) + d.thrust_vector[1].powi(2) + d.thrust_vector[2].powi(2))
+                .sqrt();
+        assert!(
+            (mag - 1.0).abs() < 1e-10,
+            "Thrust should be unit vector, mag={}",
+            mag
+        );
     }
 
     #[test]
@@ -398,16 +450,22 @@ mod tests {
         // Very large error → burn should cap at 300s
         let model = TrajectoryModel::new(vec![1e9, 0.0, 0.0], 0, 1_000_000_000);
         let d = compute_correction(&state, &model, 0);
-        assert!((d.burn_duration_s - 300.0).abs() < 1e-10, "Burn capped at 300, got {}", d.burn_duration_s);
+        assert!(
+            (d.burn_duration_s - 300.0).abs() < 1e-10,
+            "Burn capped at 300, got {}",
+            d.burn_duration_s
+        );
     }
 
     #[test]
     fn fault_type_exact_threshold_no_trigger() {
         // Reading exactly at threshold should NOT trigger (> not >=)
         let readings = [1.0];
-        let tree = vec![
-            DecisionNode { threshold: 1.0, fault: FaultType::SensorAnomaly, severity: 0.5 },
-        ];
+        let tree = vec![DecisionNode {
+            threshold: 1.0,
+            fault: FaultType::SensorAnomaly,
+            severity: 0.5,
+        }];
         let (fault, _) = evaluate_decision_tree(&readings, &tree);
         assert_eq!(fault, FaultType::Nominal);
     }
@@ -415,9 +473,11 @@ mod tests {
     #[test]
     fn fault_type_just_above_threshold() {
         let readings = [1.0001];
-        let tree = vec![
-            DecisionNode { threshold: 1.0, fault: FaultType::SensorAnomaly, severity: 0.5 },
-        ];
+        let tree = vec![DecisionNode {
+            threshold: 1.0,
+            fault: FaultType::SensorAnomaly,
+            severity: 0.5,
+        }];
         let (fault, sev) = evaluate_decision_tree(&readings, &tree);
         assert_eq!(fault, FaultType::SensorAnomaly);
         assert!((sev - 0.5).abs() < 1e-10);
@@ -437,8 +497,16 @@ mod tests {
         // Two faults with identical severity: the first one evaluated wins
         let readings = [5.0, 5.0];
         let tree = vec![
-            DecisionNode { threshold: 1.0, fault: FaultType::SensorAnomaly, severity: 0.8 },
-            DecisionNode { threshold: 1.0, fault: FaultType::CommLinkLoss, severity: 0.8 },
+            DecisionNode {
+                threshold: 1.0,
+                fault: FaultType::SensorAnomaly,
+                severity: 0.8,
+            },
+            DecisionNode {
+                threshold: 1.0,
+                fault: FaultType::CommLinkLoss,
+                severity: 0.8,
+            },
         ];
         let (fault, _) = evaluate_decision_tree(&readings, &tree);
         // Second cannot surpass the first with > comparison, so first wins
