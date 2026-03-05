@@ -40,6 +40,7 @@ pub struct SpacecraftState {
 use crate::fnv1a;
 
 impl CelestialBody {
+    #[must_use] 
     pub fn new(id: u64, name: &str, mass_kg: f64, radius_km: f64, mu: f64) -> Self {
         Self {
             id: BodyId(id),
@@ -53,19 +54,22 @@ impl CelestialBody {
 
 /// Orbital period T = 2π√(a³/μ) in seconds.
 #[inline]
+#[must_use] 
 pub fn orbital_period(semi_major_axis_km: f64, mu: f64) -> f64 {
     2.0 * PI * (semi_major_axis_km.powi(3) / mu).sqrt()
 }
 
 /// Vis-viva velocity: v = √(μ*(2/r - 1/a)) in km/s.
 #[inline]
+#[must_use] 
 pub fn orbital_velocity(r_km: f64, a_km: f64, mu: f64) -> f64 {
     (mu * (2.0 / r_km - 1.0 / a_km)).sqrt()
 }
 
 /// Hohmann transfer delta-v: returns (dv1, dv2) in km/s.
+#[must_use] 
 pub fn delta_v_hohmann(r1_km: f64, r2_km: f64, mu: f64) -> (f64, f64) {
-    let a_transfer = (r1_km + r2_km) / 2.0;
+    let a_transfer = f64::midpoint(r1_km, r2_km);
     let v1_circular = (mu / r1_km).sqrt();
     let v1_transfer = orbital_velocity(r1_km, a_transfer, mu);
     let dv1 = (v1_transfer - v1_circular).abs();
@@ -79,8 +83,9 @@ pub fn delta_v_hohmann(r1_km: f64, r2_km: f64, mu: f64) -> (f64, f64) {
 
 /// One-way light delay in seconds. c = 299792.458 km/s.
 #[inline]
+#[must_use] 
 pub fn light_delay_s(distance_km: f64) -> f64 {
-    distance_km / 299792.458
+    distance_km / 299_792.458
 }
 
 #[cfg(test)]

@@ -50,6 +50,7 @@ pub struct WalkerSatellite {
 
 impl WalkerConstellation {
     /// Create a new Walker Delta constellation.
+    #[must_use] 
     pub fn new(total: u32, planes: u32, phasing: u32, sma_km: f64, inc_rad: f64) -> Self {
         Self {
             total_satellites: total,
@@ -62,6 +63,7 @@ impl WalkerConstellation {
     }
 
     /// Satellites per plane (T / P).
+    #[must_use] 
     pub fn sats_per_plane(&self) -> u32 {
         if self.num_planes == 0 {
             return 0;
@@ -70,6 +72,7 @@ impl WalkerConstellation {
     }
 
     /// Generate all satellite orbital elements.
+    #[must_use] 
     pub fn generate(&self) -> Vec<WalkerSatellite> {
         if self.num_planes == 0 || self.total_satellites == 0 {
             return Vec::new();
@@ -134,6 +137,7 @@ impl WalkerConstellation {
     }
 
     /// Compute the angular spacing between adjacent orbital planes (rad).
+    #[must_use] 
     pub fn plane_spacing_rad(&self) -> f64 {
         if self.num_planes == 0 {
             return 0.0;
@@ -142,6 +146,7 @@ impl WalkerConstellation {
     }
 
     /// Compute the in-plane angular spacing between satellites (rad).
+    #[must_use] 
     pub fn in_plane_spacing_rad(&self) -> f64 {
         let spp = self.sats_per_plane();
         if spp == 0 {
@@ -151,7 +156,8 @@ impl WalkerConstellation {
     }
 
     /// Approximate ground track repeat period in seconds.
-    /// Assumes circular orbit with μ_Earth.
+    /// Assumes circular orbit with `μ_Earth`.
+    #[must_use] 
     pub fn ground_track_period_s(&self, mu: f64) -> f64 {
         let a = self.semi_major_axis_km;
         2.0 * PI * (a * a * a / mu).sqrt()
@@ -161,6 +167,7 @@ impl WalkerConstellation {
     /// (approximate). Based on half-cone angle of the satellite footprint.
     ///
     /// Returns 0.0 if geometry doesn't allow coverage computation.
+    #[must_use] 
     pub fn min_elevation_equator_deg(&self) -> f64 {
         if self.num_planes == 0 || self.total_satellites == 0 {
             return 0.0;

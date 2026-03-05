@@ -9,7 +9,7 @@ use crate::fnv1a;
 use std::f64::consts::PI;
 
 /// Speed of light in km/s.
-const C_KM_S: f64 = 299792.458;
+const C_KM_S: f64 = 299_792.458;
 
 /// Boltzmann constant in dBW/K/Hz.
 const K_BOLTZMANN_DBW: f64 = -228.6;
@@ -20,6 +20,7 @@ const K_BOLTZMANN_DBW: f64 = -228.6;
 ///
 /// where d is distance in km, f is frequency in GHz.
 #[inline]
+#[must_use] 
 pub fn friis_path_loss_db(distance_km: f64, frequency_ghz: f64) -> f64 {
     // Convert to meters and Hz for the formula
     let d_m = distance_km * 1000.0;
@@ -58,7 +59,7 @@ impl Default for LinkBudget {
             tx_gain_dbi: 40.0,         // Deep-space high-gain antenna
             rx_gain_dbi: 70.0,         // DSN 70m dish
             frequency_ghz: 8.4,        // X-band
-            distance_km: 384400.0,     // Earth-Moon
+            distance_km: 384_400.0,    // Earth-Moon
             system_noise_temp_k: 25.0, // Cryogenic LNA
             data_rate_bps: 1000.0,     // 1 kbps
             required_eb_n0_db: 3.0,    // BPSK threshold
@@ -92,6 +93,7 @@ pub struct LinkBudgetResult {
 
 impl LinkBudget {
     /// Compute the full link budget.
+    #[must_use] 
     pub fn compute(&self) -> LinkBudgetResult {
         let path_loss = friis_path_loss_db(self.distance_km, self.frequency_ghz);
         let eirp = self.tx_power_dbw + self.tx_gain_dbi;
@@ -131,11 +133,13 @@ impl LinkBudget {
     }
 
     /// Quick check: can this link achieve the required BER?
+    #[must_use] 
     pub fn can_close(&self) -> bool {
         self.compute().link_closes
     }
 
     /// Maximum data rate achievable with positive margin (binary search).
+    #[must_use] 
     pub fn max_data_rate_bps(&self) -> f64 {
         // Eb/N0 = C/N0 - 10*log10(R) >= required + impl_loss
         // => 10*log10(R) <= C/N0 - required - impl_loss

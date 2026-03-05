@@ -23,6 +23,7 @@ pub struct TrajectoryModel {
 }
 
 impl TrajectoryModel {
+    #[must_use] 
     pub fn new(coefficients: Vec<f64>, epoch_ns: u64, valid_ns: u64) -> Self {
         Self {
             coefficients,
@@ -31,8 +32,9 @@ impl TrajectoryModel {
         }
     }
 
-    /// Evaluate position at time t_ns.
+    /// Evaluate position at time `t_ns`.
     /// x(t) = c\[0\] + c\[3\]\*dt + c\[6\]\*dt², etc.
+    #[must_use] 
     pub fn evaluate(&self, t_ns: u64) -> [f64; 3] {
         let dt = (t_ns.saturating_sub(self.epoch_ns)) as f64 / 1e9;
         let mut pos = [0.0; 3];
@@ -61,6 +63,7 @@ impl TrajectoryModel {
 
     /// Check if model is valid at given time.
     #[inline]
+    #[must_use] 
     pub fn is_valid_at(&self, t_ns: u64) -> bool {
         t_ns >= self.epoch_ns && t_ns <= self.epoch_ns + self.valid_duration_ns
     }
@@ -109,6 +112,7 @@ pub struct DecisionNode {
 ///
 /// Each `DecisionNode` checks whether the corresponding reading exceeds its
 /// threshold. Returns the highest-severity fault detected, or `FaultType::Nominal`.
+#[must_use] 
 pub fn evaluate_decision_tree(readings: &[f64], tree: &[DecisionNode]) -> (FaultType, f64) {
     let mut worst_fault = FaultType::Nominal;
     let mut worst_severity = 0.0_f64;
@@ -134,6 +138,7 @@ pub struct ControlDecision {
 }
 
 /// Compute correction to align current state with model prediction.
+#[must_use] 
 pub fn compute_correction(
     current: &SpacecraftState,
     model: &TrajectoryModel,

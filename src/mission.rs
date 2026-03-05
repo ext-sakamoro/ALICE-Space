@@ -34,6 +34,7 @@ pub struct MissionLog {
 }
 
 impl MissionLog {
+    #[must_use] 
     pub fn new() -> Self {
         Self {
             events: Vec::new(),
@@ -70,21 +71,25 @@ impl MissionLog {
     }
 
     /// Total delta-v expended across all events.
+    #[must_use] 
     pub fn total_delta_v(&self) -> f64 {
         self.events.iter().map(|e| e.delta_v_used).sum()
     }
 
     /// Current (most recent) mission phase.
+    #[must_use] 
     pub fn current_phase(&self) -> Option<&MissionPhase> {
         self.events.last().map(|e| &e.phase)
     }
 
     /// All events for a specific phase.
+    #[must_use] 
     pub fn events_for_phase(&self, phase: MissionPhase) -> Vec<&MissionEvent> {
         self.events.iter().filter(|e| e.phase == phase).collect()
     }
 
     /// Average delta-v per event (fuel efficiency metric).
+    #[must_use] 
     pub fn fuel_efficiency(&self) -> f64 {
         if self.events.is_empty() {
             return 0.0;
@@ -93,11 +98,13 @@ impl MissionLog {
     }
 
     /// Number of logged events.
+    #[must_use] 
     pub fn len(&self) -> usize {
         self.events.len()
     }
 
     /// Whether the log is empty.
+    #[must_use] 
     pub fn is_empty(&self) -> bool {
         self.events.is_empty()
     }

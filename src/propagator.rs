@@ -20,6 +20,7 @@ pub struct TwoBodyAccel {
 
 impl TwoBodyAccel {
     /// Create a new two-body acceleration model.
+    #[must_use] 
     pub fn new(mu: f64) -> Self {
         Self { mu }
     }
@@ -27,6 +28,7 @@ impl TwoBodyAccel {
     /// Compute gravitational acceleration at position r.
     /// Returns [ax, ay, az] in km/s².
     #[inline]
+    #[must_use] 
     pub fn acceleration(&self, r: &[f64; 3]) -> [f64; 3] {
         let r2 = r[0] * r[0] + r[1] * r[1] + r[2] * r[2];
         let r_mag = r2.sqrt();
@@ -50,7 +52,7 @@ fn pack(pos: &[f64; 3], vel: &[f64; 3]) -> State6 {
 
 /// Compute derivative: d/dt [r, v] = [v, a(r)]
 #[inline]
-fn deriv(state: &State6, accel: &TwoBodyAccel) -> State6 {
+fn deriv(state: &State6, accel: TwoBodyAccel) -> State6 {
     let r = [state[0], state[1], state[2]];
     let a = accel.acceleration(&r);
     [state[3], state[4], state[5], a[0], a[1], a[2]]
@@ -78,7 +80,7 @@ fn add(a: &State6, b: &State6) -> State6 {
 /// Perform a single RK4 step.
 ///
 /// Returns the new state after advancing by `dt` seconds.
-fn rk4_step(state: &State6, dt: f64, accel: &TwoBodyAccel) -> State6 {
+fn rk4_step(state: &State6, dt: f64, accel: TwoBodyAccel) -> State6 {
     let k1 = deriv(state, accel);
     let k2 = deriv(&add(state, &scale(&k1, dt * 0.5)), accel);
     let k3 = deriv(&add(state, &scale(&k2, dt * 0.5)), accel);
@@ -99,10 +101,11 @@ fn rk4_step(state: &State6, dt: f64, accel: &TwoBodyAccel) -> State6 {
 /// Propagate a single RK4 step from a `SpacecraftState`.
 ///
 /// Returns the state after `dt_s` seconds. Fuel is unchanged.
+#[must_use] 
 pub fn propagate_rk4_single(state: &SpacecraftState, mu: f64, dt_s: f64) -> SpacecraftState {
     let accel = TwoBodyAccel::new(mu);
     let s = pack(&state.position_km, &state.velocity_km_s);
-    let s_new = rk4_step(&s, dt_s, &accel);
+    let s_new = rk4_step(&s, dt_s, accel);
     let dt_ns = (dt_s * 1e9) as u64;
 
     SpacecraftState {
@@ -117,6 +120,7 @@ pub fn propagate_rk4_single(state: &SpacecraftState, mu: f64, dt_s: f64) -> Spac
 ///
 /// Advances the state by `steps` steps of `dt_s` seconds each.
 /// Returns a Vec of states at each step (length = steps + 1, including initial).
+#[must_use] 
 pub fn propagate_rk4(
     initial: &SpacecraftState,
     mu: f64,
@@ -132,7 +136,7 @@ pub fn propagate_rk4(
     results.push(initial.clone());
 
     for _ in 0..steps {
-        s = rk4_step(&s, dt_s, &accel);
+        s = rk4_step(&s, dt_s, accel);
         t_ns += dt_ns;
         results.push(SpacecraftState {
             position_km: [s[0], s[1], s[2]],
@@ -147,6 +151,7 @@ pub fn propagate_rk4(
 
 /// Compute specific orbital energy: E = v²/2 - μ/r
 #[inline]
+#[must_use] 
 pub fn specific_energy(pos: &[f64; 3], vel: &[f64; 3], mu: f64) -> f64 {
     let r = (pos[0] * pos[0] + pos[1] * pos[1] + pos[2] * pos[2]).sqrt();
     let v2 = vel[0] * vel[0] + vel[1] * vel[1] + vel[2] * vel[2];
