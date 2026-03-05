@@ -20,17 +20,17 @@ pub struct TwoBodyAccel {
 
 impl TwoBodyAccel {
     /// Create a new two-body acceleration model.
-    #[must_use] 
-    pub fn new(mu: f64) -> Self {
+    #[must_use]
+    pub const fn new(mu: f64) -> Self {
         Self { mu }
     }
 
     /// Compute gravitational acceleration at position r.
     /// Returns [ax, ay, az] in km/s².
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn acceleration(&self, r: &[f64; 3]) -> [f64; 3] {
-        let r2 = r[0] * r[0] + r[1] * r[1] + r[2] * r[2];
+        let r2 = r[2].mul_add(r[2], r[0].mul_add(r[0], r[1] * r[1]));
         let r_mag = r2.sqrt();
         if r_mag < 1e-15 {
             return [0.0, 0.0, 0.0];
@@ -46,7 +46,7 @@ type State6 = [f64; 6];
 
 /// Pack position and velocity into a 6-element state.
 #[inline]
-fn pack(pos: &[f64; 3], vel: &[f64; 3]) -> State6 {
+const fn pack(pos: &[f64; 3], vel: &[f64; 3]) -> State6 {
     [pos[0], pos[1], pos[2], vel[0], vel[1], vel[2]]
 }
 
@@ -88,20 +88,18 @@ fn rk4_step(state: &State6, dt: f64, accel: TwoBodyAccel) -> State6 {
 
     // y_{n+1} = y_n + (dt/6)(k1 + 2*k2 + 2*k3 + k4)
     let h6 = dt / 6.0;
-    [
-        state[0] + h6 * (k1[0] + 2.0 * k2[0] + 2.0 * k3[0] + k4[0]),
-        state[1] + h6 * (k1[1] + 2.0 * k2[1] + 2.0 * k3[1] + k4[1]),
-        state[2] + h6 * (k1[2] + 2.0 * k2[2] + 2.0 * k3[2] + k4[2]),
-        state[3] + h6 * (k1[3] + 2.0 * k2[3] + 2.0 * k3[3] + k4[3]),
-        state[4] + h6 * (k1[4] + 2.0 * k2[4] + 2.0 * k3[4] + k4[4]),
-        state[5] + h6 * (k1[5] + 2.0 * k2[5] + 2.0 * k3[5] + k4[5]),
-    ]
+    let mut out = [0.0; 6];
+    for i in 0..6 {
+        let weighted = 2.0f64.mul_add(k3[i], 2.0f64.mul_add(k2[i], k1[i])) + k4[i];
+        out[i] = h6.mul_add(weighted, state[i]);
+    }
+    out
 }
 
 /// Propagate a single RK4 step from a `SpacecraftState`.
 ///
 /// Returns the state after `dt_s` seconds. Fuel is unchanged.
-#[must_use] 
+#[must_use]
 pub fn propagate_rk4_single(state: &SpacecraftState, mu: f64, dt_s: f64) -> SpacecraftState {
     let accel = TwoBodyAccel::new(mu);
     let s = pack(&state.position_km, &state.velocity_km_s);
@@ -120,7 +118,7 @@ pub fn propagate_rk4_single(state: &SpacecraftState, mu: f64, dt_s: f64) -> Spac
 ///
 /// Advances the state by `steps` steps of `dt_s` seconds each.
 /// Returns a Vec of states at each step (length = steps + 1, including initial).
-#[must_use] 
+#[must_use]
 pub fn propagate_rk4(
     initial: &SpacecraftState,
     mu: f64,
@@ -151,11 +149,11 @@ pub fn propagate_rk4(
 
 /// Compute specific orbital energy: E = v²/2 - μ/r
 #[inline]
-#[must_use] 
+#[must_use]
 pub fn specific_energy(pos: &[f64; 3], vel: &[f64; 3], mu: f64) -> f64 {
-    let r = (pos[0] * pos[0] + pos[1] * pos[1] + pos[2] * pos[2]).sqrt();
-    let v2 = vel[0] * vel[0] + vel[1] * vel[1] + vel[2] * vel[2];
-    v2 * 0.5 - mu / r
+    let r = (pos[2].mul_add(pos[2], pos[0].mul_add(pos[0], pos[1] * pos[1]))).sqrt();
+    let v2 = vel[2].mul_add(vel[2], vel[0].mul_add(vel[0], vel[1] * vel[1]));
+    v2.mul_add(0.5, -(mu / r))
 }
 
 // ── Tests ──────────────────────────────────────────────────────────────
@@ -164,7 +162,7 @@ pub fn specific_energy(pos: &[f64; 3], vel: &[f64; 3], mu: f64) -> f64 {
 mod tests {
     use super::*;
 
-    const MU_EARTH: f64 = 398600.4418;
+    const MU_EARTH: f64 = 398_600.441_8;
 
     fn circular_leo_state() -> SpacecraftState {
         // ISS-like orbit: r = 6778 km, v = sqrt(mu/r) ≈ 7.67 km/s
@@ -222,7 +220,7 @@ mod tests {
         let dz = final_state.position_km[2] - state.position_km[2];
         let error = (dx * dx + dy * dy + dz * dz).sqrt();
         // Error < 5 km after full orbit with 1s steps (RK4 truncation + rounding)
-        assert!(error < 5.0, "Position error after one orbit: {} km", error);
+        assert!(error < 5.0, "Position error after one orbit: {error} km");
     }
 
     #[test]
@@ -235,7 +233,7 @@ mod tests {
         for s in &trajectory {
             let e = specific_energy(&s.position_km, &s.velocity_km_s, MU_EARTH);
             let rel_error = (e - e_initial).abs() / e_initial.abs();
-            assert!(rel_error < 1e-7, "Energy drift: {}", rel_error);
+            assert!(rel_error < 1e-7, "Energy drift: {rel_error}");
         }
     }
 
@@ -246,9 +244,12 @@ mod tests {
         let trajectory = propagate_rk4(&state, MU_EARTH, 30.0, 50);
 
         for s in &trajectory {
-            let r =
-                (s.position_km[0].powi(2) + s.position_km[1].powi(2) + s.position_km[2].powi(2))
-                    .sqrt();
+            let r = s.position_km[2]
+                .mul_add(
+                    s.position_km[2],
+                    s.position_km[1].mul_add(s.position_km[1], s.position_km[0].powi(2)),
+                )
+                .sqrt();
             assert!(
                 (r - r_initial).abs() < 0.1,
                 "Radius drift: {} km",
@@ -335,7 +336,7 @@ mod tests {
         let r = 6778.0;
         let v = (MU_EARTH / r).sqrt(); // circular orbit
         let e = specific_energy(&[r, 0.0, 0.0], &[0.0, v, 0.0], MU_EARTH);
-        assert!(e < 0.0, "Bound orbit should have negative energy: {}", e);
+        assert!(e < 0.0, "Bound orbit should have negative energy: {e}");
     }
 
     #[test]
@@ -346,8 +347,43 @@ mod tests {
         let e = specific_energy(&[r, 0.0, 0.0], &[0.0, v, 0.0], MU_EARTH);
         assert!(
             e > 0.0,
-            "Escape trajectory should have positive energy: {}",
-            e
+            "Escape trajectory should have positive energy: {e}"
         );
+    }
+
+    mod prop {
+        use super::*;
+        use proptest::prelude::*;
+
+        proptest! {
+            #[test]
+            fn rk4_energy_conserved(
+                r in 6500.0f64..20000.0,
+                dt in 1.0f64..60.0,
+            ) {
+                let v = (MU_EARTH / r).sqrt();
+                let state = SpacecraftState {
+                    position_km: [r, 0.0, 0.0],
+                    velocity_km_s: [0.0, v, 0.0],
+                    timestamp_ns: 0,
+                    fuel_kg: 100.0,
+                };
+                let e0 = specific_energy(&state.position_km, &state.velocity_km_s, MU_EARTH);
+                let s1 = propagate_rk4_single(&state, MU_EARTH, dt);
+                let e1 = specific_energy(&s1.position_km, &s1.velocity_km_s, MU_EARTH);
+                let rel = (e1 - e0).abs() / e0.abs();
+                prop_assert!(rel < 1e-8, "energy drift: {rel}");
+            }
+
+            #[test]
+            fn acceleration_inverse_square(
+                r in 6400.0f64..100_000.0,
+            ) {
+                let accel = TwoBodyAccel::new(MU_EARTH);
+                let a = accel.acceleration(&[r, 0.0, 0.0]);
+                let expected = -MU_EARTH / (r * r);
+                prop_assert!((a[0] - expected).abs() / expected.abs() < 1e-10);
+            }
+        }
     }
 }

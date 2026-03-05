@@ -6,12 +6,21 @@ authors = ["Moroya Sakamoto"]
 description = "ALICE-Space — Deep-space communication, autonomous trajectory control, model-differential protocol"
 license = "AGPL-3.0-only"
 repository = "https://github.com/ext-sakamoro/ALICE-Space"
+keywords = ["space", "orbit", "deep-space", "constellation", "link-budget"]
 
 [dependencies]
+
+[dev-dependencies]
+proptest = "1.4"
 
 [lib]
 name = "alice_space"
 path = "src/lib.rs"
+crate-type = ["rlib", "cdylib"]
+
+[features]
+default = []
+ffi = []
 
 [profile.release]
 opt-level = 3

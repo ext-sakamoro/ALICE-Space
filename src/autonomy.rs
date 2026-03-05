@@ -23,8 +23,8 @@ pub struct TrajectoryModel {
 }
 
 impl TrajectoryModel {
-    #[must_use] 
-    pub fn new(coefficients: Vec<f64>, epoch_ns: u64, valid_ns: u64) -> Self {
+    #[must_use]
+    pub const fn new(coefficients: Vec<f64>, epoch_ns: u64, valid_ns: u64) -> Self {
         Self {
             coefficients,
             epoch_ns,
@@ -34,7 +34,7 @@ impl TrajectoryModel {
 
     /// Evaluate position at time `t_ns`.
     /// x(t) = c\[0\] + c\[3\]\*dt + c\[6\]\*dt², etc.
-    #[must_use] 
+    #[must_use]
     pub fn evaluate(&self, t_ns: u64) -> [f64; 3] {
         let dt = (t_ns.saturating_sub(self.epoch_ns)) as f64 / 1e9;
         let mut pos = [0.0; 3];
@@ -63,8 +63,8 @@ impl TrajectoryModel {
 
     /// Check if model is valid at given time.
     #[inline]
-    #[must_use] 
-    pub fn is_valid_at(&self, t_ns: u64) -> bool {
+    #[must_use]
+    pub const fn is_valid_at(&self, t_ns: u64) -> bool {
         t_ns >= self.epoch_ns && t_ns <= self.epoch_ns + self.valid_duration_ns
     }
 }
@@ -112,7 +112,7 @@ pub struct DecisionNode {
 ///
 /// Each `DecisionNode` checks whether the corresponding reading exceeds its
 /// threshold. Returns the highest-severity fault detected, or `FaultType::Nominal`.
-#[must_use] 
+#[must_use]
 pub fn evaluate_decision_tree(readings: &[f64], tree: &[DecisionNode]) -> (FaultType, f64) {
     let mut worst_fault = FaultType::Nominal;
     let mut worst_severity = 0.0_f64;
@@ -138,7 +138,7 @@ pub struct ControlDecision {
 }
 
 /// Compute correction to align current state with model prediction.
-#[must_use] 
+#[must_use]
 pub fn compute_correction(
     current: &SpacecraftState,
     model: &TrajectoryModel,
@@ -150,7 +150,8 @@ pub fn compute_correction(
         predicted[1] - current.position_km[1],
         predicted[2] - current.position_km[2],
     ];
-    let error_magnitude = (error[0] * error[0] + error[1] * error[1] + error[2] * error[2]).sqrt();
+    let error_magnitude =
+        (error[2].mul_add(error[2], error[0].mul_add(error[0], error[1] * error[1]))).sqrt();
 
     // Thrust proportional to error, normalized — precompute reciprocal to avoid 3 divisions
     let thrust = if error_magnitude > 1e-10 {
@@ -161,7 +162,7 @@ pub fn compute_correction(
     };
 
     // Confidence inversely proportional to error
-    let confidence = (1.0 / (1.0 + error_magnitude * 0.01)).clamp(0.0, 1.0);
+    let confidence = (1.0 / error_magnitude.mul_add(0.01, 1.0)).clamp(0.0, 1.0);
 
     // Burn duration proportional to error
     let burn_duration = (error_magnitude * 0.001).min(300.0);
@@ -405,7 +406,7 @@ mod tests {
         let mut model = TrajectoryModel::new(vec![1.0, 2.0, 3.0, 4.0, 5.0], 0, 1_000_000_000);
         let mut diff = crate::comm::ModelDifferential::new(1, 100);
         // FNV-1a hash of "x" modulo 256 gives index into coefficients
-        let _hash = crate::fnv1a("x".as_bytes());
+        let _hash = crate::fnv1a(b"x");
         // Manually push with a known index that fits
         diff.param_updates.push((0, 99.0)); // idx=0
         apply_differential(&mut model, &diff);
@@ -434,13 +435,15 @@ mod tests {
         };
         let model = TrajectoryModel::new(vec![300.0, 400.0, 0.0], 0, 1_000_000_000);
         let d = compute_correction(&state, &model, 0);
-        let mag =
-            (d.thrust_vector[0].powi(2) + d.thrust_vector[1].powi(2) + d.thrust_vector[2].powi(2))
-                .sqrt();
+        let mag = d.thrust_vector[2]
+            .mul_add(
+                d.thrust_vector[2],
+                d.thrust_vector[1].mul_add(d.thrust_vector[1], d.thrust_vector[0].powi(2)),
+            )
+            .sqrt();
         assert!(
             (mag - 1.0).abs() < 1e-10,
-            "Thrust should be unit vector, mag={}",
-            mag
+            "Thrust should be unit vector, mag={mag}"
         );
     }
 

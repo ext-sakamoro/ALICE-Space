@@ -40,7 +40,7 @@ pub struct SpacecraftState {
 use crate::fnv1a;
 
 impl CelestialBody {
-    #[must_use] 
+    #[must_use]
     pub fn new(id: u64, name: &str, mass_kg: f64, radius_km: f64, mu: f64) -> Self {
         Self {
             id: BodyId(id),
@@ -54,20 +54,20 @@ impl CelestialBody {
 
 /// Orbital period T = 2π√(a³/μ) in seconds.
 #[inline]
-#[must_use] 
+#[must_use]
 pub fn orbital_period(semi_major_axis_km: f64, mu: f64) -> f64 {
     2.0 * PI * (semi_major_axis_km.powi(3) / mu).sqrt()
 }
 
 /// Vis-viva velocity: v = √(μ*(2/r - 1/a)) in km/s.
 #[inline]
-#[must_use] 
+#[must_use]
 pub fn orbital_velocity(r_km: f64, a_km: f64, mu: f64) -> f64 {
     (mu * (2.0 / r_km - 1.0 / a_km)).sqrt()
 }
 
 /// Hohmann transfer delta-v: returns (dv1, dv2) in km/s.
-#[must_use] 
+#[must_use]
 pub fn delta_v_hohmann(r1_km: f64, r2_km: f64, mu: f64) -> (f64, f64) {
     let a_transfer = f64::midpoint(r1_km, r2_km);
     let v1_circular = (mu / r1_km).sqrt();
@@ -83,7 +83,7 @@ pub fn delta_v_hohmann(r1_km: f64, r2_km: f64, mu: f64) -> (f64, f64) {
 
 /// One-way light delay in seconds. c = 299792.458 km/s.
 #[inline]
-#[must_use] 
+#[must_use]
 pub fn light_delay_s(distance_km: f64) -> f64 {
     distance_km / 299_792.458
 }
@@ -92,7 +92,7 @@ pub fn light_delay_s(distance_km: f64) -> f64 {
 mod tests {
     use super::*;
 
-    const MU_EARTH: f64 = 398600.4418; // km³/s²
+    const MU_EARTH: f64 = 398_600.441_8; // km³/s²
 
     #[test]
     fn iss_orbital_period() {
@@ -120,7 +120,7 @@ mod tests {
     #[test]
     fn light_delay_earth_moon() {
         // Earth-Moon: 384400 km → ~1.28 s
-        let d = light_delay_s(384400.0);
+        let d = light_delay_s(384_400.0);
         assert!((d - 1.28).abs() < 0.01);
     }
 
@@ -150,14 +150,14 @@ mod tests {
     fn orbital_period_geo() {
         // GEO: a = 42164 km, T ≈ 86164 s (sidereal day)
         let t = orbital_period(42164.0, MU_EARTH);
-        assert!((t - 86164.0).abs() < 100.0, "GEO period: {} s", t);
+        assert!((t - 86164.0).abs() < 100.0, "GEO period: {t} s");
     }
 
     #[test]
     fn orbital_velocity_increases_closer_to_body() {
         let v_near = orbital_velocity(6578.0, 6578.0, MU_EARTH);
         let v_far = orbital_velocity(42164.0, 42164.0, MU_EARTH);
-        assert!(v_near > v_far, "LEO v={} > GEO v={}", v_near, v_far);
+        assert!(v_near > v_far, "LEO v={v_near} > GEO v={v_far}");
     }
 
     #[test]
@@ -169,9 +169,7 @@ mod tests {
         let total_down = dv1_down + dv2_down;
         assert!(
             (total_up - total_down).abs() < 0.01,
-            "up={} down={}",
-            total_up,
-            total_down
+            "up={total_up} down={total_down}"
         );
     }
 
@@ -179,8 +177,8 @@ mod tests {
     fn hohmann_zero_transfer() {
         // Same orbit: dv should be ~0
         let (dv1, dv2) = delta_v_hohmann(6778.0, 6778.0, MU_EARTH);
-        assert!(dv1 < 1e-10, "dv1={}", dv1);
-        assert!(dv2 < 1e-10, "dv2={}", dv2);
+        assert!(dv1 < 1e-10, "dv1={dv1}");
+        assert!(dv2 < 1e-10, "dv2={dv2}");
     }
 
     #[test]
@@ -236,5 +234,52 @@ mod tests {
         let c = BodyId(43);
         assert_eq!(a, b);
         assert_ne!(a, c);
+    }
+
+    mod prop {
+        use super::*;
+        use proptest::prelude::*;
+
+        proptest! {
+            #[test]
+            fn orbital_period_positive(
+                a in 6400.0f64..100_000.0,
+                mu in 1000.0f64..500_000.0,
+            ) {
+                let t = orbital_period(a, mu);
+                prop_assert!(t > 0.0, "period must be positive: {t}");
+                prop_assert!(t.is_finite());
+            }
+
+            #[test]
+            fn light_delay_non_negative(d in 0.0f64..1e12) {
+                let delay = light_delay_s(d);
+                prop_assert!(delay >= 0.0);
+                prop_assert!(delay.is_finite());
+            }
+
+            #[test]
+            fn hohmann_total_dv_symmetric(
+                r1 in 6400.0f64..50000.0,
+                r2 in 6400.0f64..50000.0,
+            ) {
+                let (dv1a, dv2a) = delta_v_hohmann(r1, r2, MU_EARTH);
+                let (dv1b, dv2b) = delta_v_hohmann(r2, r1, MU_EARTH);
+                let total_a = dv1a + dv2a;
+                let total_b = dv1b + dv2b;
+                prop_assert!((total_a - total_b).abs() < 0.01,
+                    "asymmetric: {total_a} vs {total_b}");
+            }
+
+            #[test]
+            fn orbital_velocity_positive(
+                r in 6400.0f64..50000.0,
+            ) {
+                // Circular orbit: r == a → always valid
+                let v = orbital_velocity(r, r, MU_EARTH);
+                prop_assert!(v > 0.0);
+                prop_assert!(v.is_finite());
+            }
+        }
     }
 }

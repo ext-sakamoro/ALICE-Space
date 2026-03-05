@@ -20,7 +20,7 @@ const K_BOLTZMANN_DBW: f64 = -228.6;
 ///
 /// where d is distance in km, f is frequency in GHz.
 #[inline]
-#[must_use] 
+#[must_use]
 pub fn friis_path_loss_db(distance_km: f64, frequency_ghz: f64) -> f64 {
     // Convert to meters and Hz for the formula
     let d_m = distance_km * 1000.0;
@@ -93,20 +93,20 @@ pub struct LinkBudgetResult {
 
 impl LinkBudget {
     /// Compute the full link budget.
-    #[must_use] 
+    #[must_use]
     pub fn compute(&self) -> LinkBudgetResult {
         let path_loss = friis_path_loss_db(self.distance_km, self.frequency_ghz);
         let eirp = self.tx_power_dbw + self.tx_gain_dbi;
         let received_power = eirp + self.rx_gain_dbi - path_loss;
 
         // Noise power: N = k * T * B (in dB: k_dB + 10*log10(T) + 10*log10(B))
-        let noise_power = K_BOLTZMANN_DBW + 10.0 * self.system_noise_temp_k.log10();
+        let noise_power = 10.0f64.mul_add(self.system_noise_temp_k.log10(), K_BOLTZMANN_DBW);
 
         // C/N0 = received_power - noise_power (dB-Hz)
         let cn0 = received_power - noise_power;
 
         // Eb/N0 = C/N0 - 10*log10(data_rate)
-        let eb_n0 = cn0 - 10.0 * self.data_rate_bps.log10();
+        let eb_n0 = 10.0f64.mul_add(-self.data_rate_bps.log10(), cn0);
 
         // Margin = Eb/N0 - required_Eb/N0 - implementation_loss
         let margin = eb_n0 - self.required_eb_n0_db - self.implementation_loss_db;
@@ -133,13 +133,13 @@ impl LinkBudget {
     }
 
     /// Quick check: can this link achieve the required BER?
-    #[must_use] 
+    #[must_use]
     pub fn can_close(&self) -> bool {
         self.compute().link_closes
     }
 
     /// Maximum data rate achievable with positive margin (binary search).
-    #[must_use] 
+    #[must_use]
     pub fn max_data_rate_bps(&self) -> f64 {
         // Eb/N0 = C/N0 - 10*log10(R) >= required + impl_loss
         // => 10*log10(R) <= C/N0 - required - impl_loss
@@ -147,7 +147,7 @@ impl LinkBudget {
         let path_loss = friis_path_loss_db(self.distance_km, self.frequency_ghz);
         let eirp = self.tx_power_dbw + self.tx_gain_dbi;
         let received = eirp + self.rx_gain_dbi - path_loss;
-        let noise = K_BOLTZMANN_DBW + 10.0 * self.system_noise_temp_k.log10();
+        let noise = 10.0f64.mul_add(self.system_noise_temp_k.log10(), K_BOLTZMANN_DBW);
         let cn0 = received - noise;
         let max_log_r = cn0 - self.required_eb_n0_db - self.implementation_loss_db;
         10.0_f64.powf(max_log_r / 10.0)
@@ -163,22 +163,22 @@ mod tests {
     #[test]
     fn fspl_earth_moon_x_band() {
         // Earth-Moon at X-band (8.4 GHz, 384400 km)
-        let loss = friis_path_loss_db(384400.0, 8.4);
+        let loss = friis_path_loss_db(384_400.0, 8.4);
         // Expected ~222.6 dB
-        assert!((loss - 222.6).abs() < 1.0, "FSPL: {} dB", loss);
+        assert!((loss - 222.6).abs() < 1.0, "FSPL: {loss} dB");
     }
 
     #[test]
     fn fspl_increases_with_distance() {
         let loss_near = friis_path_loss_db(1000.0, 8.4);
-        let loss_far = friis_path_loss_db(100000.0, 8.4);
+        let loss_far = friis_path_loss_db(100_000.0, 8.4);
         assert!(loss_far > loss_near);
     }
 
     #[test]
     fn fspl_increases_with_frequency() {
-        let loss_low = friis_path_loss_db(384400.0, 2.0);
-        let loss_high = friis_path_loss_db(384400.0, 32.0);
+        let loss_low = friis_path_loss_db(384_400.0, 2.0);
+        let loss_high = friis_path_loss_db(384_400.0, 32.0);
         assert!(loss_high > loss_low);
     }
 
@@ -276,7 +276,7 @@ mod tests {
     #[test]
     fn content_hash_changes_with_distance() {
         let lb1 = LinkBudget {
-            distance_km: 384400.0,
+            distance_km: 384_400.0,
             ..Default::default()
         };
         let lb2 = LinkBudget {
@@ -298,5 +298,36 @@ mod tests {
             "6dB rule: diff={}",
             loss2 - loss1
         );
+    }
+
+    mod prop {
+        use super::*;
+        use proptest::prelude::*;
+
+        proptest! {
+            #[test]
+            fn fspl_monotonically_increases_with_distance(
+                d1 in 100.0f64..1e6,
+                delta in 1.0f64..1e6,
+                freq in 1.0f64..40.0,
+            ) {
+                let d2 = d1 + delta;
+                let l1 = friis_path_loss_db(d1, freq);
+                let l2 = friis_path_loss_db(d2, freq);
+                prop_assert!(l2 > l1, "loss should increase: l1={l1}, l2={l2}");
+            }
+
+            #[test]
+            fn higher_power_more_margin(
+                p1 in 5.0f64..20.0,
+                delta in 1.0f64..30.0,
+            ) {
+                let lb_low = LinkBudget { tx_power_dbw: p1, ..LinkBudget::default() };
+                let lb_high = LinkBudget { tx_power_dbw: p1 + delta, ..LinkBudget::default() };
+                let r_low = lb_low.compute();
+                let r_high = lb_high.compute();
+                prop_assert!(r_high.margin_db > r_low.margin_db);
+            }
+        }
     }
 }

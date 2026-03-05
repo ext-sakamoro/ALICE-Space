@@ -13,8 +13,8 @@ pub struct CommLink {
 }
 
 impl CommLink {
-    #[must_use] 
-    pub fn new(source: u64, target: u64, distance_km: f64, bandwidth_bps: f64) -> Self {
+    #[must_use]
+    pub const fn new(source: u64, target: u64, distance_km: f64, bandwidth_bps: f64) -> Self {
         Self {
             source_id: BodyId(source),
             target_id: BodyId(target),
@@ -25,14 +25,14 @@ impl CommLink {
 
     /// One-way latency in seconds.
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn latency_s(&self) -> f64 {
         self.distance_km / 299_792.458
     }
 
     /// Total bits available in a transmission window.
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn bits_per_window(&self, window_s: f64) -> f64 {
         self.bandwidth_bps * window_s
     }
@@ -49,8 +49,8 @@ pub struct ModelDifferential {
 }
 
 impl ModelDifferential {
-    #[must_use] 
-    pub fn new(sequence: u64, timestamp_ns: u64) -> Self {
+    #[must_use]
+    pub const fn new(sequence: u64, timestamp_ns: u64) -> Self {
         Self {
             sequence,
             timestamp_ns,
@@ -65,8 +65,8 @@ impl ModelDifferential {
     }
 
     /// Estimated wire size in bytes.
-    #[must_use] 
-    pub fn byte_size(&self) -> usize {
+    #[must_use]
+    pub const fn byte_size(&self) -> usize {
         8 + 8 + 8 + self.param_updates.len() * 16 // seq + ts + hash + N*(hash+f64)
     }
 
@@ -84,7 +84,7 @@ impl ModelDifferential {
 }
 
 /// Check if a differential can be transmitted within a given window.
-#[must_use] 
+#[must_use]
 pub fn can_transmit(diff: &ModelDifferential, link: &CommLink, window_s: f64) -> bool {
     (diff.byte_size() * 8) as f64 <= link.bits_per_window(window_s)
 }
@@ -95,7 +95,7 @@ mod tests {
 
     #[test]
     fn link_latency() {
-        let link = CommLink::new(1, 2, 299792.458, 1000.0);
+        let link = CommLink::new(1, 2, 299_792.458, 1000.0);
         assert!((link.latency_s() - 1.0).abs() < 1e-6);
     }
 
@@ -128,10 +128,10 @@ mod tests {
     #[test]
     fn finalize_deterministic() {
         let mut d1 = ModelDifferential::new(1, 1000);
-        d1.add_param("thrust_x", 3.14);
+        d1.add_param("thrust_x", 3.15);
         d1.finalize();
         let mut d2 = ModelDifferential::new(1, 1000);
-        d2.add_param("thrust_x", 3.14);
+        d2.add_param("thrust_x", 3.15);
         d2.finalize();
         assert_eq!(d1.content_hash, d2.content_hash);
         assert_ne!(d1.content_hash, 0);
@@ -140,10 +140,10 @@ mod tests {
     #[test]
     fn finalize_different_params_different_hash() {
         let mut d1 = ModelDifferential::new(1, 1000);
-        d1.add_param("thrust_x", 3.14);
+        d1.add_param("thrust_x", 3.15);
         d1.finalize();
         let mut d2 = ModelDifferential::new(1, 1000);
-        d2.add_param("thrust_y", 3.14);
+        d2.add_param("thrust_y", 3.15);
         d2.finalize();
         assert_ne!(d1.content_hash, d2.content_hash);
     }
@@ -180,7 +180,7 @@ mod tests {
         // Mars average distance: ~225 million km → ~750 s
         let link = CommLink::new(1, 2, 225_000_000.0, 1000.0);
         let latency = link.latency_s();
-        assert!((latency - 750.5).abs() < 2.0, "Mars latency: {} s", latency);
+        assert!((latency - 750.5).abs() < 2.0, "Mars latency: {latency} s");
     }
 
     #[test]

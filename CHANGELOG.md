@@ -13,8 +13,12 @@ All notable changes to ALICE-Space will be documented in this file.
 - `link_budget` — `LinkBudget` with Friis path-loss calculation and margin analysis
 - `mission` — `MissionPhase` FSM, `MissionLog` event recording
 - FNV-1a shared hash utility
-- Zero external dependencies
-- 111 tests (110 unit + 1 doc-test)
+- Zero runtime dependencies (proptest dev-dependency only)
+- 122 tests (121 unit + 1 doc-test)
+- Clippy pedantic + nursery 0 warnings
+- `const fn` for all trivial constructors and accessors
+- `mul_add` / `to_degrees` for numerically stable floating-point ops
+- proptest property-based tests: orbit, propagator, link_budget, constellation
 
 ### Fixed
 - Collapsible `if` in `evaluate_decision_tree` (clippy)

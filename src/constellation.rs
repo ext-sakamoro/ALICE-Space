@@ -50,8 +50,8 @@ pub struct WalkerSatellite {
 
 impl WalkerConstellation {
     /// Create a new Walker Delta constellation.
-    #[must_use] 
-    pub fn new(total: u32, planes: u32, phasing: u32, sma_km: f64, inc_rad: f64) -> Self {
+    #[must_use]
+    pub const fn new(total: u32, planes: u32, phasing: u32, sma_km: f64, inc_rad: f64) -> Self {
         Self {
             total_satellites: total,
             num_planes: planes,
@@ -63,8 +63,8 @@ impl WalkerConstellation {
     }
 
     /// Satellites per plane (T / P).
-    #[must_use] 
-    pub fn sats_per_plane(&self) -> u32 {
+    #[must_use]
+    pub const fn sats_per_plane(&self) -> u32 {
         if self.num_planes == 0 {
             return 0;
         }
@@ -72,7 +72,7 @@ impl WalkerConstellation {
     }
 
     /// Generate all satellite orbital elements.
-    #[must_use] 
+    #[must_use]
     pub fn generate(&self) -> Vec<WalkerSatellite> {
         if self.num_planes == 0 || self.total_satellites == 0 {
             return Vec::new();
@@ -137,7 +137,7 @@ impl WalkerConstellation {
     }
 
     /// Compute the angular spacing between adjacent orbital planes (rad).
-    #[must_use] 
+    #[must_use]
     pub fn plane_spacing_rad(&self) -> f64 {
         if self.num_planes == 0 {
             return 0.0;
@@ -146,7 +146,7 @@ impl WalkerConstellation {
     }
 
     /// Compute the in-plane angular spacing between satellites (rad).
-    #[must_use] 
+    #[must_use]
     pub fn in_plane_spacing_rad(&self) -> f64 {
         let spp = self.sats_per_plane();
         if spp == 0 {
@@ -157,7 +157,7 @@ impl WalkerConstellation {
 
     /// Approximate ground track repeat period in seconds.
     /// Assumes circular orbit with `μ_Earth`.
-    #[must_use] 
+    #[must_use]
     pub fn ground_track_period_s(&self, mu: f64) -> f64 {
         let a = self.semi_major_axis_km;
         2.0 * PI * (a * a * a / mu).sqrt()
@@ -167,7 +167,7 @@ impl WalkerConstellation {
     /// (approximate). Based on half-cone angle of the satellite footprint.
     ///
     /// Returns 0.0 if geometry doesn't allow coverage computation.
-    #[must_use] 
+    #[must_use]
     pub fn min_elevation_equator_deg(&self) -> f64 {
         if self.num_planes == 0 || self.total_satellites == 0 {
             return 0.0;
@@ -185,7 +185,7 @@ impl WalkerConstellation {
         let theta = sin_theta.asin();
         let half_spacing = PI / self.total_satellites as f64;
         let el_rad = (PI / 2.0 - theta - half_spacing).max(0.0);
-        el_rad * 180.0 / PI
+        el_rad.to_degrees()
     }
 }
 
@@ -195,7 +195,7 @@ impl WalkerConstellation {
 mod tests {
     use super::*;
 
-    const MU_EARTH: f64 = 398600.4418;
+    const MU_EARTH: f64 = 398_600.441_8;
 
     #[test]
     fn gps_constellation_24_6_1() {
@@ -204,8 +204,8 @@ mod tests {
             24,
             6,
             1,
-            26559.7,           // GPS semi-major axis
-            55.0 * PI / 180.0, // 55° inclination
+            26559.7,               // GPS semi-major axis
+            55.0_f64.to_radians(), // 55° inclination
         );
         let sats = walker.generate();
         assert_eq!(sats.len(), 24);
@@ -250,7 +250,7 @@ mod tests {
     #[test]
     fn iridium_constellation() {
         // Iridium: 66/6/2
-        let walker = WalkerConstellation::new(66, 6, 2, 7159.0, 86.4 * PI / 180.0);
+        let walker = WalkerConstellation::new(66, 6, 2, 7159.0, 86.4_f64.to_radians());
         let sats = walker.generate();
         assert_eq!(sats.len(), 66);
         assert_eq!(walker.sats_per_plane(), 11);
@@ -258,7 +258,7 @@ mod tests {
 
     #[test]
     fn all_elements_share_sma_and_inc() {
-        let inc = 55.0 * PI / 180.0;
+        let inc = 55.0_f64.to_radians();
         let sma = 26559.7;
         let walker = WalkerConstellation::new(24, 6, 1, sma, inc);
         let sats = walker.generate();
@@ -274,7 +274,7 @@ mod tests {
         let walker = WalkerConstellation::new(24, 6, 1, 26559.7, 0.0);
         let sats = walker.generate();
         let mut indices: Vec<u32> = sats.iter().map(|s| s.global_index).collect();
-        indices.sort();
+        indices.sort_unstable();
         indices.dedup();
         assert_eq!(indices.len(), 24);
     }
@@ -315,7 +315,7 @@ mod tests {
     #[test]
     fn min_elevation_leo() {
         // LEO constellation at 780 km altitude
-        let walker = WalkerConstellation::new(66, 6, 2, 7159.0, 86.4 * PI / 180.0);
+        let walker = WalkerConstellation::new(66, 6, 2, 7159.0, 86.4_f64.to_radians());
         let el = walker.min_elevation_equator_deg();
         // Should be some positive value
         assert!(el > 0.0);
@@ -346,11 +346,7 @@ mod tests {
         // SMA below Earth radius → altitude < 0 → should return 0.0
         let walker = WalkerConstellation::new(10, 2, 0, 5000.0, 0.5);
         let el = walker.min_elevation_equator_deg();
-        assert!(
-            (el).abs() < 1e-10,
-            "Below surface should give 0, got {}",
-            el
-        );
+        assert!((el).abs() < 1e-10, "Below surface should give 0, got {el}");
     }
 
     #[test]
@@ -359,5 +355,51 @@ mod tests {
         assert_eq!(walker.sats_per_plane(), 0);
         assert!((walker.plane_spacing_rad()).abs() < 1e-10);
         assert!((walker.in_plane_spacing_rad()).abs() < 1e-10);
+    }
+
+    mod prop {
+        use super::*;
+        use proptest::prelude::*;
+
+        proptest! {
+            #[test]
+            fn generate_count_equals_total(
+                planes in 1u32..10,
+                spp in 1u32..20,
+            ) {
+                let total = planes * spp;
+                let w = WalkerConstellation::new(total, planes, 0, 7000.0, 0.5);
+                let sats = w.generate();
+                prop_assert_eq!(sats.len(), total as usize);
+            }
+
+            #[test]
+            fn global_indices_sequential(
+                planes in 1u32..8,
+                spp in 1u32..12,
+            ) {
+                let total = planes * spp;
+                let w = WalkerConstellation::new(total, planes, 0, 7000.0, 0.5);
+                let sats = w.generate();
+                for (i, s) in sats.iter().enumerate() {
+                    prop_assert_eq!(s.global_index, i as u32);
+                }
+            }
+
+            #[test]
+            fn all_sats_share_sma_and_ecc(
+                planes in 1u32..6,
+                spp in 1u32..10,
+                sma in 6500.0f64..50000.0,
+            ) {
+                let total = planes * spp;
+                let w = WalkerConstellation::new(total, planes, 0, sma, 0.5);
+                let sats = w.generate();
+                for s in &sats {
+                    prop_assert!((s.elements.semi_major_axis_km - sma).abs() < 1e-10);
+                    prop_assert!(s.elements.eccentricity.abs() < 1e-15);
+                }
+            }
+        }
     }
 }

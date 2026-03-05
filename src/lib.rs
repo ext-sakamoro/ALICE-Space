@@ -10,6 +10,7 @@
     clippy::inline_always,
     clippy::too_many_lines
 )]
+#![cfg_attr(test, allow(clippy::float_cmp))]
 
 //! ALICE-Space — Deep-Space Communication & Autonomous Control
 //!
@@ -48,6 +49,8 @@
 pub mod autonomy;
 pub mod comm;
 pub mod constellation;
+#[cfg(feature = "ffi")]
+pub mod ffi;
 pub mod link_budget;
 pub mod mission;
 pub mod orbit;
