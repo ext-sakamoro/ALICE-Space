@@ -110,6 +110,86 @@ impl MissionLog {
     }
 }
 
+// ── Mission FSM ────────────────────────────────────────────────────────
+
+/// ミッションフェーズ間の有効な遷移を管理する FSM。
+///
+/// 各フェーズから遷移可能なフェーズのセットを定義し、
+/// 不正な遷移を拒否する。
+pub struct MissionFsm {
+    current: MissionPhase,
+}
+
+/// FSM 遷移結果。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TransitionResult {
+    /// 遷移成功。
+    Ok,
+    /// 不正な遷移（現在のフェーズから遷移先へは移行不可）。
+    InvalidTransition,
+}
+
+impl MissionFsm {
+    /// 指定フェーズで FSM を初期化する。
+    #[must_use]
+    pub const fn new(initial: MissionPhase) -> Self {
+        Self { current: initial }
+    }
+
+    /// 現在のフェーズ。
+    #[must_use]
+    pub const fn current(&self) -> MissionPhase {
+        self.current
+    }
+
+    /// フェーズ遷移を試みる。
+    ///
+    /// 有効な遷移:
+    /// - Launch → `TransferOrbit`
+    /// - `TransferOrbit` → Insertion
+    /// - Insertion → Orbiting
+    /// - Orbiting → Landing | Return
+    /// - Landing → Surface
+    /// - Surface → Ascent
+    /// - Ascent → Orbiting | Return
+    /// - Return → (terminal)
+    pub const fn transition(&mut self, target: MissionPhase) -> TransitionResult {
+        if Self::is_valid_transition(self.current, target) {
+            self.current = target;
+            TransitionResult::Ok
+        } else {
+            TransitionResult::InvalidTransition
+        }
+    }
+
+    /// 遷移が有効かどうかを判定する（状態を変更しない）。
+    #[must_use]
+    pub const fn is_valid_transition(from: MissionPhase, to: MissionPhase) -> bool {
+        matches!(
+            (from, to),
+            (MissionPhase::Launch, MissionPhase::TransferOrbit)
+                | (MissionPhase::TransferOrbit, MissionPhase::Insertion)
+                | (
+                    MissionPhase::Insertion | MissionPhase::Ascent,
+                    MissionPhase::Orbiting
+                )
+                | (
+                    MissionPhase::Orbiting,
+                    MissionPhase::Landing | MissionPhase::Return
+                )
+                | (MissionPhase::Landing, MissionPhase::Surface)
+                | (MissionPhase::Surface, MissionPhase::Ascent)
+                | (MissionPhase::Ascent, MissionPhase::Return)
+        )
+    }
+
+    /// 現在のフェーズがターミナル（遷移先なし）かどうか。
+    #[must_use]
+    pub const fn is_terminal(&self) -> bool {
+        matches!(self.current, MissionPhase::Return)
+    }
+}
+
 impl Default for MissionLog {
     fn default() -> Self {
         Self::new()
@@ -213,6 +293,101 @@ mod tests {
         let log = MissionLog::default();
         assert!(log.is_empty());
         assert_eq!(log.len(), 0);
+    }
+
+    // ── MissionFsm テスト ────────────────────────────────────────
+
+    #[test]
+    fn fsm_valid_launch_to_transfer() {
+        let mut fsm = MissionFsm::new(MissionPhase::Launch);
+        assert_eq!(
+            fsm.transition(MissionPhase::TransferOrbit),
+            TransitionResult::Ok
+        );
+        assert_eq!(fsm.current(), MissionPhase::TransferOrbit);
+    }
+
+    #[test]
+    fn fsm_invalid_launch_to_orbiting() {
+        let mut fsm = MissionFsm::new(MissionPhase::Launch);
+        assert_eq!(
+            fsm.transition(MissionPhase::Orbiting),
+            TransitionResult::InvalidTransition
+        );
+        assert_eq!(fsm.current(), MissionPhase::Launch);
+    }
+
+    #[test]
+    fn fsm_full_mission_sequence() {
+        let mut fsm = MissionFsm::new(MissionPhase::Launch);
+        assert_eq!(
+            fsm.transition(MissionPhase::TransferOrbit),
+            TransitionResult::Ok
+        );
+        assert_eq!(
+            fsm.transition(MissionPhase::Insertion),
+            TransitionResult::Ok
+        );
+        assert_eq!(fsm.transition(MissionPhase::Orbiting), TransitionResult::Ok);
+        assert_eq!(fsm.transition(MissionPhase::Landing), TransitionResult::Ok);
+        assert_eq!(fsm.transition(MissionPhase::Surface), TransitionResult::Ok);
+        assert_eq!(fsm.transition(MissionPhase::Ascent), TransitionResult::Ok);
+        assert_eq!(fsm.transition(MissionPhase::Return), TransitionResult::Ok);
+        assert!(fsm.is_terminal());
+    }
+
+    #[test]
+    fn fsm_orbiting_to_return() {
+        let mut fsm = MissionFsm::new(MissionPhase::Launch);
+        fsm.transition(MissionPhase::TransferOrbit);
+        fsm.transition(MissionPhase::Insertion);
+        fsm.transition(MissionPhase::Orbiting);
+        assert_eq!(fsm.transition(MissionPhase::Return), TransitionResult::Ok);
+    }
+
+    #[test]
+    fn fsm_ascent_to_orbiting() {
+        let mut fsm = MissionFsm::new(MissionPhase::Launch);
+        fsm.transition(MissionPhase::TransferOrbit);
+        fsm.transition(MissionPhase::Insertion);
+        fsm.transition(MissionPhase::Orbiting);
+        fsm.transition(MissionPhase::Landing);
+        fsm.transition(MissionPhase::Surface);
+        fsm.transition(MissionPhase::Ascent);
+        assert_eq!(fsm.transition(MissionPhase::Orbiting), TransitionResult::Ok);
+    }
+
+    #[test]
+    fn fsm_return_is_terminal() {
+        let fsm = MissionFsm::new(MissionPhase::Return);
+        assert!(fsm.is_terminal());
+    }
+
+    #[test]
+    fn fsm_launch_not_terminal() {
+        let fsm = MissionFsm::new(MissionPhase::Launch);
+        assert!(!fsm.is_terminal());
+    }
+
+    #[test]
+    fn fsm_invalid_surface_to_launch() {
+        assert!(!MissionFsm::is_valid_transition(
+            MissionPhase::Surface,
+            MissionPhase::Launch
+        ));
+    }
+
+    #[test]
+    fn fsm_return_no_transitions() {
+        let mut fsm = MissionFsm::new(MissionPhase::Return);
+        assert_eq!(
+            fsm.transition(MissionPhase::Launch),
+            TransitionResult::InvalidTransition
+        );
+        assert_eq!(
+            fsm.transition(MissionPhase::Orbiting),
+            TransitionResult::InvalidTransition
+        );
     }
 
     #[test]
