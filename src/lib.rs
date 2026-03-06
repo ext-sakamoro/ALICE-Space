@@ -49,6 +49,7 @@
 pub mod autonomy;
 pub mod comm;
 pub mod constellation;
+pub mod eclipse;
 #[cfg(feature = "ffi")]
 pub mod ffi;
 pub mod link_budget;
@@ -62,8 +63,9 @@ pub use autonomy::{
 };
 pub use comm::{can_transmit, CommLink, ModelDifferential};
 pub use constellation::{WalkerConstellation, WalkerSatellite};
+pub use eclipse::{earth_shadow, eclipse_fraction, is_comm_window, shadow_state, ShadowState};
 pub use link_budget::{friis_path_loss_db, LinkBudget, LinkBudgetResult};
-pub use mission::{MissionEvent, MissionLog, MissionPhase};
+pub use mission::{MissionEvent, MissionFsm, MissionLog, MissionPhase, TransitionResult};
 pub use orbit::{
     delta_v_hohmann, light_delay_s, orbital_period, orbital_velocity, BodyId, CelestialBody,
     OrbitalElements, SpacecraftState,
