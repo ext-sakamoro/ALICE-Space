@@ -378,7 +378,7 @@ mod tests {
                 s.elements.true_anomaly_rad
             );
             assert!(
-                s.elements.true_anomaly_rad < 2.0 * PI + 1e-10,
+                s.elements.true_anomaly_rad < 2.0f64.mul_add(PI, 1e-10),
                 "anomaly={} >= 2π",
                 s.elements.true_anomaly_rad
             );

@@ -360,10 +360,11 @@ mod tests {
             let p = &state.position_km;
             let v = &state.velocity_km_s;
             // L = r × v, z成分のみ（2D軌道）
-            p[0] * v[1] - p[1] * v[0]
+            p[0].mul_add(v[1], -(p[1] * v[0]))
         };
         for s in &trajectory {
-            let l = s.position_km[0] * s.velocity_km_s[1] - s.position_km[1] * s.velocity_km_s[0];
+            let l = s.position_km[0]
+                .mul_add(s.velocity_km_s[1], -(s.position_km[1] * s.velocity_km_s[0]));
             let rel_err = (l - l0).abs() / l0.abs();
             assert!(rel_err < 1e-7, "角運動量ドリフト: {rel_err}");
         }
@@ -390,7 +391,10 @@ mod tests {
         let e0 = specific_energy(&state.position_km, &state.velocity_km_s, MU_EARTH);
         let result = propagate_rk4_single(&state, MU_EARTH, 0.001);
         let e1 = specific_energy(&result.position_km, &result.velocity_km_s, MU_EARTH);
-        assert!((e0 - e1).abs() / e0.abs() < 1e-15, "極小dtでのエネルギー精度");
+        assert!(
+            (e0 - e1).abs() / e0.abs() < 1e-15,
+            "極小dtでのエネルギー精度"
+        );
     }
 
     #[test]

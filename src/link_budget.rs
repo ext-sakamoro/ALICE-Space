@@ -310,7 +310,11 @@ mod tests {
         };
         let result = lb.compute();
         // DSN + 高ゲインアンテナなら低レートで閉じるはず
-        assert!(result.link_closes, "火星リンクマージン: {} dB", result.margin_db);
+        assert!(
+            result.link_closes,
+            "火星リンクマージン: {} dB",
+            result.margin_db
+        );
     }
 
     #[test]

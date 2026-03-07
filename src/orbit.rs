@@ -255,7 +255,10 @@ mod tests {
         let t2 = orbital_period(a2, MU_EARTH);
         // T2/T1 = (a2/a1)^(3/2) = 2^1.5 ≈ 2.828
         let ratio = t2 / t1;
-        assert!((ratio - 2.828).abs() < 0.01, "Kepler 3rd law ratio: {ratio}");
+        assert!(
+            (ratio - 2.828).abs() < 0.01,
+            "Kepler 3rd law ratio: {ratio}"
+        );
     }
 
     #[test]
