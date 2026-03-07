@@ -236,6 +236,59 @@ mod tests {
         assert_ne!(a, c);
     }
 
+    #[test]
+    fn orbital_velocity_vis_viva_elliptical() {
+        // 楕円軌道: 近地点でr<aなので速度は円軌道より大きい
+        let r = 6578.0; // 近地点
+        let a = 24371.0; // 楕円軌道の半長軸
+        let v_ellip = orbital_velocity(r, a, MU_EARTH);
+        let v_circ = orbital_velocity(r, r, MU_EARTH);
+        assert!(v_ellip > v_circ, "楕円近地点速度 > 円軌道速度");
+    }
+
+    #[test]
+    fn orbital_period_kepler_third_law() {
+        // ケプラー第三法則: T² ∝ a³
+        let a1 = 7000.0;
+        let a2 = 14000.0; // 2倍の半長軸
+        let t1 = orbital_period(a1, MU_EARTH);
+        let t2 = orbital_period(a2, MU_EARTH);
+        // T2/T1 = (a2/a1)^(3/2) = 2^1.5 ≈ 2.828
+        let ratio = t2 / t1;
+        assert!((ratio - 2.828).abs() < 0.01, "Kepler 3rd law ratio: {ratio}");
+    }
+
+    #[test]
+    fn hohmann_dv1_positive_outward() {
+        // 外側への遷移: dv1は正（加速）
+        let (dv1, dv2) = delta_v_hohmann(6578.0, 42164.0, MU_EARTH);
+        assert!(dv1 > 0.0);
+        assert!(dv2 > 0.0);
+    }
+
+    #[test]
+    fn light_delay_voyager_distance() {
+        // ボイジャー1号: ~24 billion km → ~22 hours
+        let d = light_delay_s(24_000_000_000.0);
+        let hours = d / 3600.0;
+        assert!((hours - 22.2).abs() < 1.0, "Voyager delay: {hours} hours");
+    }
+
+    #[test]
+    fn orbital_elements_clone() {
+        let e = OrbitalElements {
+            semi_major_axis_km: 7000.0,
+            eccentricity: 0.1,
+            inclination_rad: 0.5,
+            raan_rad: 1.0,
+            arg_periapsis_rad: 2.0,
+            true_anomaly_rad: 3.0,
+        };
+        let e2 = e.clone();
+        assert_eq!(e.semi_major_axis_km, e2.semi_major_axis_km);
+        assert_eq!(e.eccentricity, e2.eccentricity);
+    }
+
     mod prop {
         use super::*;
         use proptest::prelude::*;

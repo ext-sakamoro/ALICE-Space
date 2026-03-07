@@ -357,6 +357,67 @@ mod tests {
         assert!((walker.in_plane_spacing_rad()).abs() < 1e-10);
     }
 
+    #[test]
+    fn starlink_like_constellation() {
+        // Starlink第1シェル的な構成: 72面×22衛星 = 1584
+        let walker = WalkerConstellation::new(1584, 72, 1, 6921.0, 53.0_f64.to_radians());
+        let sats = walker.generate();
+        assert_eq!(sats.len(), 1584);
+        assert_eq!(walker.sats_per_plane(), 22);
+    }
+
+    #[test]
+    fn true_anomaly_in_range() {
+        // 全衛星のtrue_anomalyが[0, 2π)の範囲内
+        let walker = WalkerConstellation::new(24, 6, 3, 26559.7, 0.5);
+        let sats = walker.generate();
+        for s in &sats {
+            assert!(
+                s.elements.true_anomaly_rad >= 0.0,
+                "anomaly={} < 0",
+                s.elements.true_anomaly_rad
+            );
+            assert!(
+                s.elements.true_anomaly_rad < 2.0 * PI + 1e-10,
+                "anomaly={} >= 2π",
+                s.elements.true_anomaly_rad
+            );
+        }
+    }
+
+    #[test]
+    fn ground_track_period_leo() {
+        // LEO: a=7000km → T ≈ 5800s
+        let walker = WalkerConstellation::new(1, 1, 0, 7000.0, 0.0);
+        let period = walker.ground_track_period_s(MU_EARTH);
+        assert!((period - 5834.0).abs() < 50.0, "LEO period: {period}");
+    }
+
+    #[test]
+    fn content_hash_unique_per_satellite() {
+        // 各衛星のcontent_hashがユニーク
+        let walker = WalkerConstellation::new(24, 6, 1, 26559.7, 0.5);
+        let sats = walker.generate();
+        let mut hashes: Vec<u64> = sats.iter().map(|s| s.content_hash).collect();
+        hashes.sort_unstable();
+        hashes.dedup();
+        assert_eq!(hashes.len(), 24, "ハッシュの重複あり");
+    }
+
+    #[test]
+    fn plane_index_matches_raan() {
+        // plane_indexが異なる衛星はRAANも異なる
+        let walker = WalkerConstellation::new(12, 3, 0, 7000.0, 0.5);
+        let sats = walker.generate();
+        let plane0_raan = sats[0].elements.raan_rad;
+        let plane1_raan = sats[4].elements.raan_rad;
+        assert!(
+            (plane1_raan - plane0_raan - 2.0 * PI / 3.0).abs() < 1e-10,
+            "RAAN差: {}",
+            plane1_raan - plane0_raan
+        );
+    }
+
     mod prop {
         use super::*;
         use proptest::prelude::*;

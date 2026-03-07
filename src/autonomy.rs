@@ -501,6 +501,75 @@ mod tests {
     }
 
     #[test]
+    fn trajectory_evaluate_all_terms_combined() {
+        // 定数 + 線形 + 二次の複合: x(t) = 10 + 5t + 2t²
+        let model = TrajectoryModel::new(
+            vec![10.0, 0.0, 0.0, 5.0, 0.0, 0.0, 2.0, 0.0, 0.0],
+            0,
+            10_000_000_000,
+        );
+        // t=3s: 10 + 15 + 18 = 43
+        let pos = model.evaluate(3_000_000_000);
+        assert!((pos[0] - 43.0).abs() < 1e-6, "複合項 pos={}", pos[0]);
+    }
+
+    #[test]
+    fn trajectory_evaluate_y_and_z() {
+        // y, z軸の線形項テスト
+        let model = TrajectoryModel::new(
+            vec![0.0, 0.0, 0.0, 0.0, 20.0, -10.0],
+            0,
+            10_000_000_000,
+        );
+        let pos = model.evaluate(2_000_000_000); // t=2s
+        assert!(pos[0].abs() < 1e-10);
+        assert!((pos[1] - 40.0).abs() < 1e-6, "y={}", pos[1]);
+        assert!((pos[2] - (-20.0)).abs() < 1e-6, "z={}", pos[2]);
+    }
+
+    #[test]
+    fn correction_direction_correct() {
+        // 全軸方向のエラーで推力方向が正しいか
+        let state = SpacecraftState {
+            position_km: [10.0, 20.0, 30.0],
+            velocity_km_s: [0.0, 0.0, 0.0],
+            timestamp_ns: 0,
+            fuel_kg: 100.0,
+        };
+        let model = TrajectoryModel::new(vec![110.0, 120.0, 130.0], 0, 1_000_000_000);
+        let d = compute_correction(&state, &model, 0);
+        // エラーが(100, 100, 100)なので推力は(1,1,1)/sqrt(3)方向
+        let expected = 1.0 / 3.0_f64.sqrt();
+        for i in 0..3 {
+            assert!(
+                (d.thrust_vector[i] - expected).abs() < 1e-6,
+                "推力方向 axis {i}"
+            );
+        }
+    }
+
+    #[test]
+    fn apply_differential_multiple_updates() {
+        // 複数パラメータの同時更新
+        let mut model = TrajectoryModel::new(vec![0.0; 10], 0, 1_000_000_000);
+        let mut diff = crate::comm::ModelDifferential::new(1, 100);
+        diff.param_updates.push((0, 1.0));
+        diff.param_updates.push((1, 2.0));
+        diff.param_updates.push((2, 3.0));
+        apply_differential(&mut model, &diff);
+        assert!((model.coefficients[0] - 1.0).abs() < 1e-10);
+        assert!((model.coefficients[1] - 2.0).abs() < 1e-10);
+        assert!((model.coefficients[2] - 3.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn autonomy_level_copy() {
+        let a = AutonomyLevel::HighAutonomy;
+        let b = a;
+        assert_eq!(a, b);
+    }
+
+    #[test]
     fn fault_type_equal_severity_first_wins() {
         // Two faults with identical severity: the first one evaluated wins
         let readings = [5.0, 5.0];

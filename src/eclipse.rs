@@ -216,6 +216,58 @@ mod tests {
     }
 
     #[test]
+    fn shadow_state_behind_along_y() {
+        // Y軸方向の太陽で-Y方向の衛星 → 影
+        let sat = (0.0, -7000.0, 0.0);
+        let sun_dir = (0.0, 1.0, 0.0);
+        assert_eq!(earth_shadow(sat, sun_dir), ShadowState::Umbra);
+    }
+
+    #[test]
+    fn shadow_state_behind_along_z() {
+        // Z軸方向の太陽で-Z方向の衛星 → 影
+        let sat = (0.0, 0.0, -7000.0);
+        let sun_dir = (0.0, 0.0, 1.0);
+        assert_eq!(earth_shadow(sat, sun_dir), ShadowState::Umbra);
+    }
+
+    #[test]
+    fn shadow_perpendicular_to_sun_sunlit() {
+        // 太陽方向に対して垂直 → dot=0 → 日照
+        let sat = (0.0, 7000.0, 0.0);
+        let sun_dir = (1.0, 0.0, 0.0);
+        assert_eq!(earth_shadow(sat, sun_dir), ShadowState::Sunlit);
+    }
+
+    #[test]
+    fn eclipse_fraction_negative_altitude() {
+        // 負の高度（地下） → 割合1.0
+        let frac = eclipse_fraction(-100.0);
+        assert!((frac - 1.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn eclipse_fraction_between_0_and_1() {
+        // 任意の正高度で0 < frac < 1
+        for alt in [100.0, 500.0, 1000.0, 5000.0, 20000.0] {
+            let frac = eclipse_fraction(alt);
+            assert!(frac > 0.0 && frac < 1.0, "altitude={alt}, frac={frac}");
+        }
+    }
+
+    #[test]
+    fn penumbra_detection() {
+        // 本影の境界外、半影の境界内の位置を作成
+        // body_radius=6371, penumbra_radius ≈ 6371 * 1.00465
+        let penumbra_factor = 1.0 + SUN_RADIUS_KM / EARTH_SUN_DISTANCE_KM;
+        let penumbra_r = EARTH_RADIUS_KM * penumbra_factor;
+        let mid = (EARTH_RADIUS_KM + penumbra_r) / 2.0;
+        let sat = (-10000.0, mid, 0.0);
+        let sun_dir = (1.0, 0.0, 0.0);
+        assert_eq!(shadow_state(sat, sun_dir, EARTH_RADIUS_KM), ShadowState::Penumbra);
+    }
+
+    #[test]
     fn eclipse_fraction_monotonically_decreasing() {
         let f400 = eclipse_fraction(400.0);
         let f1000 = eclipse_fraction(1000.0);
