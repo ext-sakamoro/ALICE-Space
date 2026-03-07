@@ -300,6 +300,70 @@ mod tests {
         );
     }
 
+    #[test]
+    fn link_budget_mars_distance() {
+        // 火星距離でのリンクバジェット
+        let lb = LinkBudget {
+            distance_km: 225_000_000.0, // 火星平均距離
+            data_rate_bps: 100.0,       // 極低レート
+            ..Default::default()
+        };
+        let result = lb.compute();
+        // DSN + 高ゲインアンテナなら低レートで閉じるはず
+        assert!(result.link_closes, "火星リンクマージン: {} dB", result.margin_db);
+    }
+
+    #[test]
+    fn received_power_formula() {
+        // 受信電力 = EIRP + Rx_gain - FSPL
+        let lb = LinkBudget::default();
+        let result = lb.compute();
+        let expected_rx = result.eirp_dbw + lb.rx_gain_dbi - result.path_loss_db;
+        assert!(
+            (result.received_power_dbw - expected_rx).abs() < 1e-6,
+            "受信電力の整合性"
+        );
+    }
+
+    #[test]
+    fn higher_frequency_more_loss() {
+        // 高周波数 → パスロス増大 → マージン減少
+        let lb_low = LinkBudget {
+            frequency_ghz: 2.0,
+            ..Default::default()
+        };
+        let lb_high = LinkBudget {
+            frequency_ghz: 32.0,
+            ..Default::default()
+        };
+        assert!(lb_low.compute().margin_db > lb_high.compute().margin_db);
+    }
+
+    #[test]
+    fn max_data_rate_finite() {
+        let lb = LinkBudget::default();
+        let max_rate = lb.max_data_rate_bps();
+        assert!(max_rate.is_finite());
+        assert!(max_rate > 0.0);
+    }
+
+    #[test]
+    fn eb_n0_decreases_with_data_rate() {
+        // データレート増加 → Eb/N0減少
+        let lb_slow = LinkBudget {
+            data_rate_bps: 100.0,
+            ..Default::default()
+        };
+        let lb_fast = LinkBudget {
+            data_rate_bps: 1_000_000.0,
+            ..Default::default()
+        };
+        assert!(
+            lb_slow.compute().eb_n0_db > lb_fast.compute().eb_n0_db,
+            "低レートほどEb/N0が高い"
+        );
+    }
+
     mod prop {
         use super::*;
         use proptest::prelude::*;

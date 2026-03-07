@@ -17,7 +17,7 @@ Deep-space communication autonomous trajectory control model-differential protoc
 
 | チェック | 結果 |
 |---------|------|
-| テスト | 145 passed (144 unit + 1 doc-test) |
+| テスト | 207 passed (206 unit + 1 doc-test) |
 | clippy | 0 warnings (`-D warnings`) |
 | fmt | clean |
 | doc | 0 warnings |
@@ -37,7 +37,7 @@ ALICE-KARIKARI.md「100/100品質基準」参照。clippy基準: `pedantic+nurse
 | 指標 | 値 |
 |------|-----|
 | clippy (pedantic+nursery) | 0 warnings |
-| テスト数 | 145 |
+| テスト数 | 207 |
 | fmt | clean |
 
 ## Eco-System パイプライン

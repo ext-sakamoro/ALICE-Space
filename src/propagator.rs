@@ -351,6 +351,65 @@ mod tests {
         );
     }
 
+    #[test]
+    fn propagate_angular_momentum_conserved() {
+        // 角運動量保存: L = r × v の大きさが一定
+        let state = circular_leo_state();
+        let trajectory = propagate_rk4(&state, MU_EARTH, 10.0, 100);
+        let l0 = {
+            let p = &state.position_km;
+            let v = &state.velocity_km_s;
+            // L = r × v, z成分のみ（2D軌道）
+            p[0] * v[1] - p[1] * v[0]
+        };
+        for s in &trajectory {
+            let l = s.position_km[0] * s.velocity_km_s[1] - s.position_km[1] * s.velocity_km_s[0];
+            let rel_err = (l - l0).abs() / l0.abs();
+            assert!(rel_err < 1e-7, "角運動量ドリフト: {rel_err}");
+        }
+    }
+
+    #[test]
+    fn propagate_rk4_negative_dt() {
+        // 負の時間ステップ: 逆方向伝播
+        let state = circular_leo_state();
+        let forward = propagate_rk4_single(&state, MU_EARTH, 60.0);
+        let back = propagate_rk4_single(&forward, MU_EARTH, -60.0);
+        for i in 0..3 {
+            assert!(
+                (back.position_km[i] - state.position_km[i]).abs() < 0.01,
+                "逆伝播位置誤差 axis {i}"
+            );
+        }
+    }
+
+    #[test]
+    fn propagate_rk4_small_dt_high_accuracy() {
+        // 極小タイムステップでの精度確認
+        let state = circular_leo_state();
+        let e0 = specific_energy(&state.position_km, &state.velocity_km_s, MU_EARTH);
+        let result = propagate_rk4_single(&state, MU_EARTH, 0.001);
+        let e1 = specific_energy(&result.position_km, &result.velocity_km_s, MU_EARTH);
+        assert!((e0 - e1).abs() / e0.abs() < 1e-15, "極小dtでのエネルギー精度");
+    }
+
+    #[test]
+    fn specific_energy_zero_for_parabolic() {
+        // 放物線軌道: E = 0 (脱出速度ちょうど)
+        let r = 6778.0;
+        let v_escape = (2.0 * MU_EARTH / r).sqrt();
+        let e = specific_energy(&[r, 0.0, 0.0], &[0.0, v_escape, 0.0], MU_EARTH);
+        assert!(e.abs() < 1e-6, "放物線軌道エネルギー: {e}");
+    }
+
+    #[test]
+    fn two_body_accel_copy_trait() {
+        // Copy traitの確認
+        let a1 = TwoBodyAccel::new(MU_EARTH);
+        let a2 = a1;
+        assert_eq!(a1.mu, a2.mu);
+    }
+
     mod prop {
         use super::*;
         use proptest::prelude::*;

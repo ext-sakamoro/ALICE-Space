@@ -391,6 +391,55 @@ mod tests {
     }
 
     #[test]
+    fn fsm_self_transition_invalid() {
+        // 同じフェーズへの遷移は不正
+        let mut fsm = MissionFsm::new(MissionPhase::Launch);
+        assert_eq!(
+            fsm.transition(MissionPhase::Launch),
+            TransitionResult::InvalidTransition
+        );
+    }
+
+    #[test]
+    fn fsm_skip_phase_invalid() {
+        // フェーズの飛ばし（Launch → Insertion）は不正
+        let mut fsm = MissionFsm::new(MissionPhase::Launch);
+        assert_eq!(
+            fsm.transition(MissionPhase::Insertion),
+            TransitionResult::InvalidTransition
+        );
+    }
+
+    #[test]
+    fn log_total_delta_v_accumulated() {
+        // 複数イベントのdelta-v合計
+        let mut log = MissionLog::new();
+        log.log_event(MissionPhase::Launch, 1000, 3.5, 500.0);
+        log.log_event(MissionPhase::TransferOrbit, 2000, 2.5, 450.0);
+        log.log_event(MissionPhase::Insertion, 3000, 1.0, 430.0);
+        assert!((log.total_delta_v() - 7.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn fuel_efficiency_single_event() {
+        let mut log = MissionLog::new();
+        log.log_event(MissionPhase::Launch, 1000, 5.0, 500.0);
+        assert!((log.fuel_efficiency() - 5.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn fsm_orbiting_cannot_go_to_surface_directly() {
+        let mut fsm = MissionFsm::new(MissionPhase::Launch);
+        fsm.transition(MissionPhase::TransferOrbit);
+        fsm.transition(MissionPhase::Insertion);
+        fsm.transition(MissionPhase::Orbiting);
+        assert_eq!(
+            fsm.transition(MissionPhase::Surface),
+            TransitionResult::InvalidTransition
+        );
+    }
+
+    #[test]
     fn all_mission_phases_representable() {
         let mut log = MissionLog::new();
         let phases = [

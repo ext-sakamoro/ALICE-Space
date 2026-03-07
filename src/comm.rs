@@ -203,6 +203,56 @@ mod tests {
     }
 
     #[test]
+    fn finalize_empty_differential() {
+        // パラメータなしでもfinalizeが動作する
+        let mut d = ModelDifferential::new(42, 9999);
+        d.finalize();
+        assert_ne!(d.content_hash, 0);
+    }
+
+    #[test]
+    fn finalize_sequence_affects_hash() {
+        // シーケンス番号が異なるとハッシュも異なる
+        let mut d1 = ModelDifferential::new(1, 1000);
+        d1.finalize();
+        let mut d2 = ModelDifferential::new(2, 1000);
+        d2.finalize();
+        assert_ne!(d1.content_hash, d2.content_hash);
+    }
+
+    #[test]
+    fn bits_per_window_zero_window() {
+        // ウィンドウ幅0 → ビット数0
+        let link = CommLink::new(1, 2, 1000.0, 9600.0);
+        assert!((link.bits_per_window(0.0)).abs() < 1e-10);
+    }
+
+    #[test]
+    fn link_latency_zero_distance() {
+        // 距離0 → レイテンシ0
+        let link = CommLink::new(1, 2, 0.0, 1000.0);
+        assert!((link.latency_s()).abs() < 1e-15);
+    }
+
+    #[test]
+    fn add_param_hash_consistency() {
+        // 同じパラメータ名は同じハッシュ
+        let mut d1 = ModelDifferential::new(1, 100);
+        let mut d2 = ModelDifferential::new(1, 100);
+        d1.add_param("velocity_x", 5.0);
+        d2.add_param("velocity_x", 5.0);
+        assert_eq!(d1.param_updates[0].0, d2.param_updates[0].0);
+    }
+
+    #[test]
+    fn can_transmit_zero_bandwidth() {
+        // 帯域幅0ではどんな差分も送信不可
+        let diff = ModelDifferential::new(1, 100);
+        let link = CommLink::new(1, 2, 1000.0, 0.0);
+        assert!(!can_transmit(&diff, &link, 100.0));
+    }
+
+    #[test]
     fn comm_link_source_target_ids() {
         let link = CommLink::new(10, 20, 500.0, 9600.0);
         assert_eq!(link.source_id, BodyId(10));
