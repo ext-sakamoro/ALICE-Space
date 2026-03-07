@@ -261,10 +261,13 @@ mod tests {
         // body_radius=6371, penumbra_radius ≈ 6371 * 1.00465
         let penumbra_factor = 1.0 + SUN_RADIUS_KM / EARTH_SUN_DISTANCE_KM;
         let penumbra_r = EARTH_RADIUS_KM * penumbra_factor;
-        let mid = (EARTH_RADIUS_KM + penumbra_r) / 2.0;
+        let mid = f64::midpoint(EARTH_RADIUS_KM, penumbra_r);
         let sat = (-10000.0, mid, 0.0);
         let sun_dir = (1.0, 0.0, 0.0);
-        assert_eq!(shadow_state(sat, sun_dir, EARTH_RADIUS_KM), ShadowState::Penumbra);
+        assert_eq!(
+            shadow_state(sat, sun_dir, EARTH_RADIUS_KM),
+            ShadowState::Penumbra
+        );
     }
 
     #[test]

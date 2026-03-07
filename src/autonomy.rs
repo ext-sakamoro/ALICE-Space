@@ -516,11 +516,7 @@ mod tests {
     #[test]
     fn trajectory_evaluate_y_and_z() {
         // y, z軸の線形項テスト
-        let model = TrajectoryModel::new(
-            vec![0.0, 0.0, 0.0, 0.0, 20.0, -10.0],
-            0,
-            10_000_000_000,
-        );
+        let model = TrajectoryModel::new(vec![0.0, 0.0, 0.0, 0.0, 20.0, -10.0], 0, 10_000_000_000);
         let pos = model.evaluate(2_000_000_000); // t=2s
         assert!(pos[0].abs() < 1e-10);
         assert!((pos[1] - 40.0).abs() < 1e-6, "y={}", pos[1]);
