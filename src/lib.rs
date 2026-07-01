@@ -67,6 +67,7 @@ pub mod mission;
 pub mod orbit;
 pub mod propagator;
 pub mod rinex;
+pub mod sbas;
 pub mod sp3;
 pub mod tle;
 pub mod troposphere;
@@ -77,6 +78,7 @@ pub use geodetic::{
 };
 pub use ionosphere::{klobuchar_delay_m, klobuchar_delay_s, KlobucharCoefficients};
 pub use rinex::{parse as parse_rinex, RinexEpoch, RinexError, RinexFile, RinexHeader, RinexObs};
+pub use sbas::{FastCorrection, PrnMask, SbasMessage, SbasMessageType};
 pub use sp3::{parse as parse_sp3, Sp3Epoch, Sp3Error, Sp3File, Sp3Header, Sp3Position};
 pub use tle::{parse as parse_tle, Tle, TleError};
 pub use troposphere::{
