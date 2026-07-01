@@ -61,17 +61,24 @@ pub mod eclipse;
 #[cfg(feature = "ffi")]
 pub mod ffi;
 pub mod geodetic;
+pub mod ionosphere;
 pub mod link_budget;
 pub mod mission;
 pub mod orbit;
 pub mod propagator;
 pub mod tle;
+pub mod troposphere;
 
 pub use dop::{compute_dop, DopValues};
 pub use geodetic::{
     ecef_to_eci, ecef_to_geodetic, eci_to_ecef, geodetic_to_ecef, gmst_rad, Ecef, Eci, Geodetic,
 };
+pub use ionosphere::{klobuchar_delay_m, klobuchar_delay_s, KlobucharCoefficients};
 pub use tle::{parse as parse_tle, Tle, TleError};
+pub use troposphere::{
+    saastamoinen_delay_m, simple_mapping_function, zenith_hydrostatic_delay_m, zenith_wet_delay_m,
+    MetState,
+};
 
 pub use autonomy::{
     apply_differential, compute_correction, evaluate_decision_tree, AutonomyLevel, ControlDecision,
