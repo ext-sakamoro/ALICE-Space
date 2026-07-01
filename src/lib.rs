@@ -8,7 +8,14 @@
     clippy::many_single_char_names,
     clippy::module_name_repetitions,
     clippy::inline_always,
-    clippy::too_many_lines
+    clippy::too_many_lines,
+    clippy::doc_markdown,
+    clippy::missing_const_for_fn,
+    clippy::inconsistent_digit_grouping,
+    clippy::imprecise_flops,
+    clippy::suboptimal_flops,
+    clippy::needless_range_loop,
+    clippy::unreadable_literal
 )]
 #![cfg_attr(test, allow(clippy::float_cmp))]
 
@@ -49,13 +56,22 @@
 pub mod autonomy;
 pub mod comm;
 pub mod constellation;
+pub mod dop;
 pub mod eclipse;
 #[cfg(feature = "ffi")]
 pub mod ffi;
+pub mod geodetic;
 pub mod link_budget;
 pub mod mission;
 pub mod orbit;
 pub mod propagator;
+pub mod tle;
+
+pub use dop::{compute_dop, DopValues};
+pub use geodetic::{
+    ecef_to_eci, ecef_to_geodetic, eci_to_ecef, geodetic_to_ecef, gmst_rad, Ecef, Eci, Geodetic,
+};
+pub use tle::{parse as parse_tle, Tle, TleError};
 
 pub use autonomy::{
     apply_differential, compute_correction, evaluate_decision_tree, AutonomyLevel, ControlDecision,

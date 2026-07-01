@@ -34,9 +34,9 @@ pub enum ShadowState {
 ///
 /// # Arguments
 ///
-/// - `sat_pos`: 衛星位置 (x, y, z) [km] — 地球中心座標系
+/// - `sat_pos`: 衛星位置 (x, y, z) \[km\] — 地球中心座標系
 /// - `sun_dir`: 太陽方向の単位ベクトル (x, y, z) — 地球から太陽への方向
-/// - `body_radius`: 遮蔽天体の半径 [km]
+/// - `body_radius`: 遮蔽天体の半径 \[km\]
 #[must_use]
 pub fn shadow_state(
     sat_pos: (f64, f64, f64),
@@ -87,7 +87,7 @@ pub fn earth_shadow(sat_pos: (f64, f64, f64), sun_dir: (f64, f64, f64)) -> Shado
 ///
 /// # Arguments
 ///
-/// - `altitude_km`: 軌道高度 [km]
+/// - `altitude_km`: 軌道高度 \[km\]
 ///
 /// # Returns
 ///

@@ -79,11 +79,11 @@ pub extern "C" fn alice_space_link_budget_margin(
 // Propagator (2)
 // ---------------------------------------------------------------------------
 
-/// Single RK4 propagation step. Reads pos[3]+vel[3] from `state_in`,
-/// writes new pos[3]+vel[3] to `state_out`.
+/// Single RK4 propagation step. Reads `pos[3]` + `vel[3]` from `state_in`,
+/// writes new `pos[3]` + `vel[3]` to `state_out`.
 ///
 /// # Safety
-/// `state_in` must point to 6 contiguous f64 [px,py,pz,vx,vy,vz].
+/// `state_in` must point to 6 contiguous f64 `[px, py, pz, vx, vy, vz]`.
 /// `state_out` must point to a buffer of at least 6 f64.
 #[no_mangle]
 pub unsafe extern "C" fn alice_space_rk4_single(
@@ -109,10 +109,10 @@ pub unsafe extern "C" fn alice_space_rk4_single(
     *state_out.add(5) = result.velocity_km_s[2];
 }
 
-/// Two-body gravitational acceleration. Writes [ax,ay,az] to `out`.
+/// Two-body gravitational acceleration. Writes `[ax, ay, az]` to `out`.
 ///
 /// # Safety
-/// `r` must point to 3 contiguous f64 [x,y,z].
+/// `r` must point to 3 contiguous f64 `[x, y, z]`.
 /// `out` must point to a buffer of at least 3 f64.
 #[no_mangle]
 pub unsafe extern "C" fn alice_space_two_body_accel(r: *const f64, mu: f64, out: *mut f64) {
@@ -212,8 +212,8 @@ mod tests {
         let state_in: [f64; 6] = [6778.0, 0.0, 0.0, 0.0, 7.67, 0.0];
         let mut state_out = [0.0f64; 6];
         unsafe {
-            alice_space_rk4_single(state_in.as_ptr(), MU_EARTH, 60.0, state_out.as_mut_ptr())
-        };
+            alice_space_rk4_single(state_in.as_ptr(), MU_EARTH, 60.0, state_out.as_mut_ptr());
+        }
         let r = (state_out[0].powi(2) + state_out[1].powi(2) + state_out[2].powi(2)).sqrt();
         assert!((r - 6778.0).abs() < 50.0);
     }
