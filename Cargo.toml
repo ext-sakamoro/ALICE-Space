@@ -1,6 +1,6 @@
 [package]
 name = "alice-space"
-version = "0.6.0"
+version = "0.7.0"
 edition = "2021"
 authors = ["Moroya Sakamoto <sakamoro@alicelaw.net>"]
 description = "ALICE-Space — Deep-space communication, autonomous trajectory control, GNSS foundation (WGS-84 geodetic, TLE parser, DOP)"
