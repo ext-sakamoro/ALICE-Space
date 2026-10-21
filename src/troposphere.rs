@@ -4,7 +4,7 @@
 //! (hydrostatic) and a wet component, each mapped from the zenith direction
 //! to the receiver-to-satellite line-of-sight by a mapping function.
 //!
-//! For SPACID's near-Earth GNSS use cases the standard-atmosphere / Niell
+//! For near-Earth GNSS use cases the standard-atmosphere / Niell
 //! wet-dry decomposition is sufficient. The interface accepts either
 //! measured meteorology or an ISO 2533 default derived from the user
 //! altitude alone.
@@ -88,7 +88,7 @@ pub fn zenith_wet_delay_m(met: MetState) -> f64 {
 
 /// Niell / secant mapping function `m(elev) = 1/sin(elev)`.
 ///
-/// Suitable above about 5° elevation. For SPACID's cm-scale use case a
+/// Suitable above about 5° elevation. For a cm-scale use case a
 /// full Niell decomposition can replace this; the simple form is exposed
 /// here as a public API for downstream refinement.
 #[must_use]

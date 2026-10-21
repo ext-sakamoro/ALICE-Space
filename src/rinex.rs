@@ -2,7 +2,7 @@
 //!
 //! RINEX (Receiver Independent Exchange Format) is the standard container
 //! for `GNSS` observation data. This parser implements a subset sufficient
-//! for SPACID's authenticity workflow:
+//! for an authenticity workflow:
 //!
 //! - Header parsing (`RINEX VERSION / TYPE`, `SYS / # / OBS TYPES`,
 //!   `END OF HEADER`).

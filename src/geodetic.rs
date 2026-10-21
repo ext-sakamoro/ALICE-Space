@@ -9,7 +9,7 @@
 //!
 //! `GMST` (Greenwich Mean Sidereal Time) is approximated with the `IAU-1982`
 //! polynomial evaluated at Unix time; sufficient for orbit visibility
-//! computations targeted by SPACID's `QZSS` use case.
+//! computations in `QZSS` use cases.
 
 use core::f64::consts::PI;
 

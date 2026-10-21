@@ -17,7 +17,7 @@
 //! Reed-Solomon (255,223) code.
 //!
 //! This module implements the **frame header + type dispatch** — the
-//! entry point required by any SPACID-facing SDK. Full SSR / CLAS
+//! entry point an SDK built on these messages needs. Full SSR / CLAS
 //! decoders can be layered on top.
 //!
 //! # References

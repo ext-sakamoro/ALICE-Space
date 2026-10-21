@@ -6,7 +6,7 @@
 //! velocity) records prefixed by `P` and `V`.
 //!
 //! This parser implements the subset of SP3-c/SP3-d needed for GNSS
-//! visibility computations targeted by SPACID's QZSS use case:
+//! visibility computations in QZSS use cases:
 //!
 //! - Header decoding (`#` line): number of epochs, start time, coordinate
 //!   system, orbit type.
