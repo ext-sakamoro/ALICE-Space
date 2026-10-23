@@ -152,8 +152,11 @@ pub fn conical_illumination(
         // measured); each segment a²·(θ − sin θ cos θ) is formed on its own
         // instead, and the visible part from the segments on its own side, so
         // neither end (fraction near 1 or near 0) cancels
-        let xa = (c * c + a * a - b * b) / (2.0 * c);
-        let xb = (c * c - a * a + b * b) / (2.0 * c);
+        // c² − b² and c² − a² as products: on the edge of a body much larger
+        // than the Sun's disk c ≈ b, and the squared form would lose the digits
+        // of c − b
+        let xa = (a * a + (c - b) * (c + b)) / (2.0 * c);
+        let xb = (b * b + (c - a) * (c + a)) / (2.0 * c);
         let (ta, tb) = (acos64(xa / a), acos64(xb / b));
         let disk = core::f64::consts::PI * a * a;
         let fraction = if ta <= core::f64::consts::FRAC_PI_2 {
