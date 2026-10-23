@@ -104,8 +104,20 @@ pub const SOLAR_RADIATION_PRESSURE: Law = Law {
     semantics_id: SOLAR_RADIATION_PRESSURE_ID,
 };
 
+/// Atmospheric drag `drag::atmospheric_drag` relative to a co-rotating
+/// atmosphere, with the caller's density.
+pub const DRAG_ID: [u8; 32] = [
+    0x8a, 0xa7, 0x74, 0xaf, 0x42, 0xc1, 0x46, 0x3a, 0x5c, 0xc7, 0xbd, 0x9a, 0x76, 0x91, 0x94, 0xbb,
+    0x33, 0x83, 0xcc, 0x7a, 0x57, 0xf9, 0x7c, 0x60, 0x90, 0x47, 0xe9, 0x52, 0xce, 0x36, 0xf8, 0x1f,
+];
+/// [`DRAG_ID`] with its name.
+pub const DRAG: Law = Law {
+    name: "alice-space/drag-corotating",
+    semantics_id: DRAG_ID,
+};
+
 /// Every Law of the crate.
-pub const ALL: [Law; 7] = [
+pub const ALL: [Law; 8] = [
     SGP4_AFSPC_WGS72,
     ODM_INTERP_LAGRANGE,
     ODM_INTERP_HERMITE,
@@ -113,4 +125,5 @@ pub const ALL: [Law; 7] = [
     ZONAL_GRAVITY,
     THIRD_BODY,
     SOLAR_RADIATION_PRESSURE,
+    DRAG,
 ];

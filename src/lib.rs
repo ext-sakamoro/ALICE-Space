@@ -59,6 +59,7 @@ pub mod comm;
 pub mod constellation;
 pub mod cycle_slip;
 pub mod dop;
+pub mod drag;
 pub mod eclipse;
 #[cfg(feature = "ffi")]
 pub mod ffi;

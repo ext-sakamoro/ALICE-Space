@@ -13,6 +13,7 @@
 //!
 //! Author: Moroya Sakamoto
 
+use alice_space::drag::{self, atmospheric_drag};
 use alice_space::eclipse::{
     conical_illumination, Eclipse, EARTH_EQUATORIAL_RADIUS_KM, MOON_RADIUS_KM, SUN_RADIUS_KM,
 };
@@ -43,6 +44,10 @@ const REFERENCE_SRP_INPUTS: (&str, usize) = (
     "6e4a193fffce69850f1e788ffe06f0ad67efba84b0047577fe50c98cd46efcba",
     462,
 );
+const REFERENCE_DRAG_INPUTS: (&str, usize) = (
+    "ca686d751f7bbfab54fcac0055aaaa35f9193b9d83490fec17426eea9c2d37d9",
+    120,
+);
 const REFERENCE_ZONAL_INPUTS: (&str, usize) = (
     "be322080b9a1056ade3b4d56c494049f661d6b157b5c4c43195d5f3692e37e34",
     121,
@@ -63,6 +68,7 @@ const REFERENCE_THIRD_BODY: &str =
     "ba8a14c951f28c516b40981a4f456494924c302542e7b1a76683b059acca8041";
 const REFERENCE_SOLAR_RADIATION_PRESSURE: &str =
     "37ee5039d3a8b685596de241667839e6ac188f8f6dfb8c6858aacb9b034ff248";
+const REFERENCE_DRAG: &str = "66055564a695ea39a0dda533ad3b011c72fcd03bdb6ce0568c1dc7ddb7f5f6d6";
 const REFERENCE_ZONAL_GRAVITY: &str =
     "eca9b9a0460ae56e5032586e19bfd245382c0cbc1305c444f95013dcb0b8ff0b";
 const REFERENCE_ECLIPSE_CONICAL: &str =
@@ -468,6 +474,67 @@ fn srp_outputs(cases: &[SrpCase]) -> Vec<u8> {
     out
 }
 
+// ---- drag ------------------------------------------------------------------
+
+/// The zonal grid's positions above 6,400 km with whole-metre-per-second
+/// velocities, densities 10⁻⁹ to 10⁻¹⁵ kg/m³, three Cd / A/m pairs, the
+/// Earth's rotation and none, and the invalid inputs.
+type DragCase = ([f64; 3], [f64; 3], f64, f64, f64, f64);
+
+fn drag_cases() -> Vec<DragCase> {
+    let pairs = [(2.2, 0.01), (2.0, 0.05), (2.5, 0.002)];
+    let mut v: Vec<DragCase> = zonal_cases()
+        .into_iter()
+        .enumerate()
+        .filter(|(_, (r, _))| r.iter().any(|c| *c != 0.0))
+        .map(|(k, (r, _))| {
+            let kk = k as i32;
+            let vel = [
+                f64::from(7_500 - 13 * kk) / 1e3,
+                f64::from(-300 + 7 * kk) / 1e3,
+                f64::from(100 * (kk % 5) - 200) / 1e3,
+            ];
+            let (cd, am) = pairs[k % 3];
+            let rho = [1e-9, 1e-11, 1e-13, 1e-15][k % 4];
+            let omega = if k % 5 == 0 {
+                0.0
+            } else {
+                drag::EARTH_ROTATION_RATE
+            };
+            (r, vel, rho, cd, am, omega)
+        })
+        .collect();
+    v.extend([
+        ([7_000.0, 0.0, 0.0], [0.0, 7.5, 0.0], -1e-12, 2.2, 0.01, 0.0),
+        ([7_000.0, 0.0, 0.0], [0.0, 7.5, 0.0], 0.0, 2.2, 0.01, 0.0),
+    ]);
+    v
+}
+
+fn drag_input_bytes(cases: &[DragCase]) -> Vec<u8> {
+    let mut out = Vec::new();
+    for (r, vel, rho, cd, am, omega) in cases {
+        bits(&mut out, r);
+        bits(&mut out, vel);
+        bits(&mut out, &[*rho, *cd, *am, *omega]);
+    }
+    out
+}
+
+fn drag_outputs(cases: &[DragCase]) -> Vec<u8> {
+    let mut out = Vec::new();
+    for &(r, vel, rho, cd, am, omega) in cases {
+        match atmospheric_drag(r, vel, rho, cd, am, omega) {
+            Ok(a) => {
+                out.extend([0]);
+                bits(&mut out, &a);
+            }
+            Err(_) => out.extend([1]),
+        }
+    }
+    out
+}
+
 // ---- identifiers -----------------------------------------------------------
 
 fn law_id(law: &Law, data: &[u8], grid: (&str, usize), reference: &str) -> [u8; 32] {
@@ -491,7 +558,14 @@ fn reference_grids_are_frozen() {
     let zonal = zonal_cases();
     let third = third_cases();
     let srp_grid = srp_cases();
+    let drag_grid = drag_cases();
     let got = [
+        (
+            "DRAG_INPUTS",
+            digest(&drag_input_bytes(&drag_grid)),
+            drag_grid.len(),
+            REFERENCE_DRAG_INPUTS,
+        ),
         (
             "SRP_INPUTS",
             digest(&srp_input_bytes(&srp_grid)),
@@ -585,6 +659,7 @@ fn reference_digests() {
             srp_outputs(&srp_cases()),
             REFERENCE_SOLAR_RADIATION_PRESSURE,
         ),
+        ("DRAG", drag_outputs(&drag_cases()), REFERENCE_DRAG),
     ];
     let mut bad = Vec::new();
     for (name, bytes, want) in &got {
@@ -639,6 +714,8 @@ fn semantics_ids() {
     );
     srp_data.extend(law::ECLIPSE_CONICAL_ID);
     srp_data.extend(alice_det_math::SEMANTICS_ID);
+    let mut drag_data = b"a = -1/2 rho Cd (A/m) |v - w x r| (v - w x r), km and km/s".to_vec();
+    drag_data.extend(alice_det_math::SEMANTICS_ID);
     let cases = [
         (
             law::SGP4_AFSPC_WGS72,
@@ -682,6 +759,7 @@ fn semantics_ids() {
             REFERENCE_SRP_INPUTS,
             REFERENCE_SOLAR_RADIATION_PRESSURE,
         ),
+        (law::DRAG, drag_data, REFERENCE_DRAG_INPUTS, REFERENCE_DRAG),
     ];
     let mut bad = Vec::new();
     for (l, data, grid, reference) in &cases {

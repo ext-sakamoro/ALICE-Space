@@ -26,3 +26,6 @@ path = "alice_space::law::THIRD_BODY_ID"
 
 [[id]]
 path = "alice_space::law::SOLAR_RADIATION_PRESSURE_ID"
+
+[[id]]
+path = "alice_space::law::DRAG_ID"
