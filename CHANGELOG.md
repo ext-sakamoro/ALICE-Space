@@ -30,6 +30,7 @@ All notable changes to ALICE-Space will be documented in this file.
 - `eclipse::shadow_state` / `eclipse::earth_shadow` / `eclipse::eclipse_fraction`: 円錐でなく円筒の近似 (本影は距離によらず天体半径の円筒、半影は固定係数で広げた円筒、金環なし) `conical_illumination` / `earth_illumination` に移る 次の minor で削除 2026-10-23 の時点で ALICE の他の repo (origin/main) に呼び出し元は無い 移行が要るのはこの crate の再 export (`lib.rs`) だけ 非推奨にした関数の `mul_add` と platform の `asin` は alice-det-math の算術に置き換えた
 
 ### Fixed
+- `eclipse::conical_illumination`: 半影の縁の近くで見える割合が最大 6e-6 ずれ、1 を超えることがあった (扇形から弦の三角形を引く式の桁落ち) 2 つの弓形をそれぞれ求め、見える部分を同じ側の弓形から作る
 - `ccsds_odm`: 秒 60 (`23:59:60`) を OEM の行・`START_TIME` / `STOP_TIME` / `USEABLE_*`・OPM の `EPOCH`・`OemSegment::state_at` の問い合わせのどこでも受け付けない UTC では非対応 (`Unsupported`)、TAI / TT / GPS など他の時刻系では存在しない秒として `Invalid` それまでは窓の時刻と問い合わせの 23:59:60 を翌日の 00:00:00 として読んでいた
 - `tle::parse`: BSTAR と平均運動の 2 階微分 (仮定小数の field、例 ` -22483-4`) を `仮数 × 10f64.powi(指数)` でなく小数の文字列 (`-0.22483e-4`) を 1 回 parse して作る `powi` の精度は規定されておらず、Vallado の検証 TLE と CelesTrak の 2 組の 70 field のうち 6 field が正しく丸めた値から 1 ulp ずれていた 試験 `tests/tle_assumed_decimal.rs` (70 field 全てが正しく丸めた値と bit 一致)
 
