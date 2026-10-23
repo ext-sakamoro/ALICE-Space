@@ -4,7 +4,8 @@
 //! a = -μ r / |r|³; [`propagate_rk4_field`] takes any [`Acceleration`], such as
 //! the zonal field of [`crate::gravity::ZonalGravity`]. An [`Acceleration`]
 //! depends on the position alone: forces that depend on the velocity (drag)
-//! or on time (the Sun and the Moon) are not integrated here.
+//! or on time (the Sun and the Moon) are not integrated here; the force model
+//! [`crate::forces::ForceModel`] integrates those.
 //!
 //! Author: Moroya Sakamoto
 
