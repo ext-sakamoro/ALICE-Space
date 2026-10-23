@@ -19,7 +19,7 @@
 //! The older functions ([`shadow_state`], [`earth_shadow`],
 //! [`eclipse_fraction`]) are a cylinder approximation and are deprecated.
 
-use alice_det_math::{acos64, asin64, atan2_64, sqrt64};
+use alice_det_math::{acos64, asin64, atan2_64, sin64, sqrt64};
 
 // ── Constants ──────────────────────────────────────────────────────────
 
@@ -144,15 +144,24 @@ pub fn conical_illumination(
     } else if c <= a - b {
         (Eclipse::Annular, 1.0 - (b * b) / (a * a))
     } else {
-        // overlap of disks a and b at distance c: the chord through both
-        // crossing points is at x from the centre of the Sun's disk
-        let x = (c * c + a * a - b * b) / (2.0 * c);
-        let y = sqrt64(a * a - x * x);
-        let area = a * a * acos64(x / a) + b * b * acos64((c - x) / b) - c * y;
-        (
-            Eclipse::Partial,
-            1.0 - area / (core::f64::consts::PI * a * a),
-        )
+        // the overlap of disks a and b at distance c is two circular segments
+        // cut by the common chord, at xa from the centre of the Sun's disk and
+        // xb from the body's. The textbook form a²·θa + b²·θb − c·y subtracts
+        // the triangle c·y from the sectors and, near tangency, leaves a tiny
+        // difference of large terms (a visible fraction above 1 by 6e-6 was
+        // measured); each segment a²·(θ − sin θ cos θ) is formed on its own
+        // instead, and the visible part from the segments on its own side, so
+        // neither end (fraction near 1 or near 0) cancels
+        let xa = (c * c + a * a - b * b) / (2.0 * c);
+        let xb = (c * c - a * a + b * b) / (2.0 * c);
+        let (ta, tb) = (acos64(xa / a), acos64(xb / b));
+        let disk = core::f64::consts::PI * a * a;
+        let fraction = if ta <= core::f64::consts::FRAC_PI_2 {
+            1.0 - (a * a * segment(ta) + b * b * segment(tb)) / disk
+        } else {
+            (a * a * segment(core::f64::consts::PI - ta) - b * b * segment(tb)) / disk
+        };
+        (Eclipse::Partial, fraction)
     };
     Ok(Illumination {
         eclipse,
@@ -161,6 +170,16 @@ pub fn conical_illumination(
         body_angular_radius: b,
         separation: c,
     })
+}
+
+/// Area of the circular segment of the unit circle with half-angle `t`
+/// (`0 ≤ t ≤ π`): `t − sin t · cos t = (u − sin u) / 2` with `u = 2t`. Its
+/// absolute error is a few ulp of `u`, which is what the visible fraction
+/// sees; a series for small `u` would only sharpen the relative error of a
+/// segment far below the conditioning of the fraction on the angles.
+fn segment(t: f64) -> f64 {
+    let u = 2.0 * t;
+    (u - sin64(u)) / 2.0
 }
 
 /// [`conical_illumination`] with the Earth (equatorial radius

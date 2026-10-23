@@ -80,7 +80,7 @@ fn illumination_matches_the_integrated_overlap() {
         );
         compared += 1;
     }
-    assert_eq!(compared, 459);
+    assert_eq!(compared, 475);
     assert!(kinds.iter().all(|&k| k > 0), "{kinds:?}");
 }
 
@@ -186,4 +186,116 @@ fn degenerate_input_is_an_error() {
     // the satellite exactly between the Earth and the Sun is sunlit
     let i = earth_illumination([7000.0, 0.0, 0.0], sun).unwrap();
     assert_eq!((i.eclipse, i.fraction), (Eclipse::None, 1.0));
+}
+
+/// First-order bound on the error of the visible fraction for one row,
+/// derived from the arithmetic of `conical_illumination` (ε = 2⁻⁵²):
+///
+/// - inputs: `u = sun − sat`, `v = body − sat` are rounded (ε/2 per
+///   component, an angle of at most ε/2 for each direction); `|u×v|` is
+///   within √3·ε·|u||v| and `u·v` within 2ε·|u||v| of their exact values, so
+///   `c = atan2(|u×v|, u·v)` is within (|δS| + |δD|)/(|u||v|) plus the
+///   directions and atan2's own rounding: δc ≤ (8 + 2c)ε, in any frame;
+///   `a = asin(R/|u|)` with `|u|` within 2ε relative: δa ≤ 3ε·tan a + 2ε·a,
+///   and δb likewise;
+/// - propagation through F = 1 − A/(πa²) (or the visible segments, the same
+///   derivatives): ∂A/∂c = −2y, ∂A/∂b = 2θ_b·b, ∂A/∂a = 2θ_a·a, and
+///   ∂F/∂a has the extra 2A/(πa³) of the denominator;
+/// - evaluation: x_a = (c² + a² − b²)/(2c) within 3ε·(c² + a² + b²)/(2c)
+///   plus ε|x_a|; θ = acos(x/a) moves the
+///   segment by 2·sin²θ·δθ = 2·sinθ·δx/a + 4ε·θ·sin²θ; the segment form
+///   (u − sin u)/2 is within 4ε·θ; the sum and the division ε·A, and the
+///   final subtraction from 1 (or the visible fraction) ε.
+///
+/// The c term dominates near the edges of a large body: an earlier bound that
+/// took δc relative to c (and omitted 2A/(πa³)) was exceeded by 0.6 % on a
+/// rotated row; the cancellation in x_a is ~8 times smaller than it there.
+fn fraction_bound(a: f64, b: f64, c: f64, kind: Eclipse) -> f64 {
+    use alice_det_math::{acos64, sin64, sqrt64};
+    let e = f64::EPSILON;
+    let tan = |x: f64| sin64(x) / alice_det_math::cos64(x);
+    let da = 3.0 * e * tan(a) + 2.0 * e * a;
+    let db = 3.0 * e * tan(b) + 2.0 * e * b;
+    let dc = (8.0 + 2.0 * c) * e;
+    let pi = core::f64::consts::PI;
+    match kind {
+        Eclipse::None | Eclipse::Total => 0.0,
+        Eclipse::Annular => (2.0 * b * b / (a * a * a)) * da + (2.0 * b / (a * a)) * db + 3.0 * e,
+        Eclipse::Partial => {
+            let xa = (c * c + a * a - b * b) / (2.0 * c);
+            let xb = (c * c - a * a + b * b) / (2.0 * c);
+            let (ta, tb) = (acos64(xa / a), acos64(xb / b));
+            let seg = |t: f64| (2.0 * t - sin64(2.0 * t)) / 2.0;
+            let area = a * a * seg(ta) + b * b * seg(tb);
+            let y = sqrt64(a * a - xa * xa);
+            let prop = (2.0 * y * dc + 2.0 * tb * b * db + (2.0 * ta * a + 2.0 * area / a) * da)
+                / (pi * a * a);
+            let dxa = 3.0 * e * (c * c + a * a + b * b) / (2.0 * c) + e * xa.abs();
+            let dxb = 3.0 * e * (c * c + a * a + b * b) / (2.0 * c) + e * xb.abs();
+            let (sa, sb) = (sin64(ta), sin64(tb));
+            let eval_a = a * a * (2.0 * sa * dxa / a + 4.0 * e * ta * sa * sa + 4.0 * e * ta);
+            let eval_b = b * b * (2.0 * sb * dxb / b + 4.0 * e * tb * sb * sb + 4.0 * e * tb);
+            let eval = (eval_a + eval_b + e * area) / (pi * a * a) + e;
+            prop + eval
+        }
+    }
+}
+
+/// Grazing configurations (`tests/golden/eclipse_grazing.csv`): satellites
+/// 1e-13 to 1e-1 (relative offset) from every edge with the Sun on +x, and
+/// every Earth configuration again under two seeded random rotations of the
+/// scene, against the circle-intersection formula at 50 digits. The kind must
+/// match, and the visible fraction must be inside [0, 1] with no clamping and
+/// within [`fraction_bound`] of the exact value.
+#[test]
+fn grazing_configurations_stay_within_the_derived_bound() {
+    let path = format!(
+        "{}/tests/golden/eclipse_grazing.csv",
+        env!("CARGO_MANIFEST_DIR")
+    );
+    let text = std::fs::read_to_string(&path).unwrap();
+    let mut compared = 0;
+    let mut worst_ratio: f64 = 0.0;
+    for line in text.lines().filter(|l| !l.starts_with('#')).skip(1) {
+        let r: Vec<&str> = line.split(',').collect();
+        let v = |i: usize| f(r[i]);
+        let got = conical_illumination(
+            [v(1), v(2), v(3)],
+            [v(4), v(5), v(6)],
+            [v(7), v(8), v(9)],
+            v(10),
+        )
+        .unwrap();
+        let want = match r[11] {
+            "none" => Eclipse::None,
+            "partial" => Eclipse::Partial,
+            "annular" => Eclipse::Annular,
+            "total" => Eclipse::Total,
+            k => panic!("{k}"),
+        };
+        assert_eq!(got.eclipse, want, "{line}");
+        let err = (got.fraction - v(12)).abs();
+        let bound = fraction_bound(
+            got.sun_angular_radius,
+            got.body_angular_radius,
+            got.separation,
+            want,
+        );
+        assert!(
+            err <= bound,
+            "{line}: {} off by {err:e} > {bound:e}",
+            got.fraction
+        );
+        assert!(
+            (0.0..=1.0).contains(&got.fraction),
+            "{line}: {}",
+            got.fraction
+        );
+        if bound > 0.0 {
+            worst_ratio = alice_det_math::max64(worst_ratio, err / bound);
+        }
+        compared += 1;
+    }
+    assert_eq!(compared, 5600);
+    assert!(worst_ratio > 0.0, "the comparison saw no rounding at all");
 }

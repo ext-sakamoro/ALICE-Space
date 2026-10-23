@@ -21,6 +21,7 @@ import mpmath
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 OUT = ROOT / "tests" / "golden" / "eclipse.csv"
+GRAZING_OUT = ROOT / "tests" / "golden" / "eclipse_grazing.csv"
 PIN = "1.4.1"
 mpmath.mp.dps = 40
 
@@ -94,7 +95,105 @@ def cases():
         for k in range(-16, 17):
             off = rm * (mpmath.mpf(k) / 6)
             out.append(("moon", [moon[0] - back, off, -off / 2], sun, moon, rm))
+    # just inside and just outside each edge (c = a + b, the penumbra; c = b - a,
+    # the umbra) found at 40 digits: the offsets 1e-12 apart in y change the
+    # separation by about 1e-14 rad, far above the f64 rounding of c (1e-18 rad)
+    for name, x, body, rb in [("earth", mpmath.mpf(-7000), [0, 0, 0], re),
+                              ("earth", mpmath.mpf(-42164), [0, 0, 0], re),
+                              ("earth", mpmath.mpf(-400000), [0, 0, 0], re),
+                              ("moon", mpmath.mpf(380000), moon, rm)]:
+        for edge in ("penumbra", "umbra"):
+            y = edge_offset(x, sun, body, rb, edge)
+            if y is None:
+                continue
+            for f in (1 - mpmath.mpf("1e-12"), 1 + mpmath.mpf("1e-12")):
+                # the row is read back as f64: classify the f64 input itself
+                out.append((name, [x, mpmath.mpf(float(y * f)), mpmath.mpf(0)], sun, body, rb))
     return out
+
+
+def edge_offset(x, sun, body, rb, edge):
+    """The y > 0 at which the satellite (x, y, 0) sits on the edge, by bisection
+    at 40 digits; None when the edge does not exist at that x."""
+    def gap(y):
+        _, _, a, b, c = fraction([x, y, mpmath.mpf(0)], sun, body, rb)
+        return c - {"penumbra": a + b, "umbra": b - a, "annular": a - b}[edge]
+    lo, hi = mpmath.mpf(0), 4 * rb
+    if gap(lo) >= 0 or gap(hi) <= 0:
+        return None
+    for _ in range(160):
+        mid = (lo + hi) / 2
+        if gap(mid) < 0:
+            lo = mid
+        else:
+            hi = mid
+    return (lo + hi) / 2
+
+
+def textbook(sat, sun, body, rb):
+    """The visible fraction from the circle-intersection formula at 50 digits
+    (a different formula from the crate's; at this precision its cancellation
+    near tangency costs nothing), and the two segment parameters u = 2*theta."""
+    with mpmath.workdps(50):
+        kind, _, a, b, c = fraction(sat, sun, body, rb)
+        if kind != "partial":
+            return kind, (1 if kind == "none" else (1 - b * b / (a * a) if kind == "annular" else 0)), None, None
+        x = (c * c + a * a - b * b) / (2 * c)
+        y = mpmath.sqrt(a * a - x * x)
+        ta, tb = mpmath.acos(x / a), mpmath.acos((c - x) / b)
+        lens = a * a * ta + b * b * tb - c * y
+        return kind, 1 - lens / (mpmath.pi * a * a), 2 * ta, 2 * tb
+
+
+def rotation(rng):
+    """A uniform random rotation (Shoemake's quaternion from three uniforms)
+    from a seeded random.Random, as a 3x3 matrix at 40 digits."""
+    u1, u2, u3 = (mpmath.mpf(rng.random()) for _ in range(3))
+    q = (mpmath.sqrt(1 - u1) * mpmath.sin(2 * mpmath.pi * u2), mpmath.sqrt(1 - u1) * mpmath.cos(2 * mpmath.pi * u2),
+         mpmath.sqrt(u1) * mpmath.sin(2 * mpmath.pi * u3), mpmath.sqrt(u1) * mpmath.cos(2 * mpmath.pi * u3))
+    x, y, z, w = q
+    return [[1 - 2 * (y * y + z * z), 2 * (x * y - z * w), 2 * (x * z + y * w)],
+            [2 * (x * y + z * w), 1 - 2 * (x * x + z * z), 2 * (y * z - x * w)],
+            [2 * (x * z - y * w), 2 * (y * z + x * w), 1 - 2 * (x * x + y * y)]]
+
+
+def rotate(m, v):
+    """m * v at 40 digits, rounded to f64 (the row is read back as f64)."""
+    return [mpmath.mpf(float(sum(m[i][k] * v[k] for k in range(3)))) for i in range(3)]
+
+
+def grazing():
+    """Satellites within 1e-13 .. 1e-1 (relative offset in y) of every edge
+    (penumbra c = a + b, umbra c = b - a, annular c = a - b), with the Sun on
+    +x, and every Earth configuration again under two random rotations of the
+    whole scene (seeded), so that no frame aligned with the axes hides the
+    rounding of the cross product."""
+    import random
+    rng = random.Random(20261024)
+    sun = [AU, mpmath.mpf(0), mpmath.mpf(0)]
+    re, rm = BODIES["earth"], BODIES["moon"]
+    moon = [mpmath.mpf(384400), mpmath.mpf(0), mpmath.mpf(0)]
+    configs = [("earth", mpmath.mpf(-d), [0, 0, 0], re)
+               for d in (6778, 7000, 8000, 12000, 26560, 42164, 100000, 400000, 1000000, 1500000)]
+    configs += [("moon", moon[0] - mpmath.mpf(back), moon, rm) for back in (5000, 50000, 300000, 380000, 420000)]
+    deltas = [mpmath.mpf(10) ** (-13 + 12 * k / 39) for k in range(40)]
+    rows = []
+    for name, x, body, rb in configs:
+        for edge in ("penumbra", "umbra", "annular"):
+            y = edge_offset(x, sun, body, rb, edge)
+            if y is None:
+                continue
+            for d in deltas:
+                for f in (1 - d, 1 + d):
+                    rows.append((name, [x, mpmath.mpf(float(y * f)), mpmath.mpf(0)], sun, body, rb))
+    rotated = []
+    for name, sat, s_, body, rb in rows:
+        if name != "earth":
+            continue
+        for _ in range(2):
+            m = rotation(rng)
+            rotated.append((name, rotate(m, sat), rotate(m, s_), [mpmath.mpf(0)] * 3, rb))
+    return rows + rotated
 
 
 def main():
@@ -113,13 +212,27 @@ def main():
             + ",".join(mpmath.nstr(v, 25) for v in (nu, a, b, c))
         )
     text = "\n".join(lines) + "\n"
+    graze = [
+        "# generated by scripts/gen_eclipse_golden.py: grazing configurations, the circle-intersection formula at 50 digits",
+        "body,sat_x,sat_y,sat_z,sun_x,sun_y,sun_z,body_x,body_y,body_z,body_radius,kind,fraction,u_sun,u_body",
+    ]
+    for name, sat, sun, body, rb in grazing():
+        kind, nu, ua, ub = textbook(sat, sun, body, rb)
+        nums = [*sat, *sun, *body, rb]
+        us = ",".join("" if u is None else mpmath.nstr(u, 20) for u in (ua, ub))
+        graze.append(name + "," + ",".join(repr(float(v)) for v in nums) + f",{kind},{mpmath.nstr(nu, 25)},{us}")
+    graze_text = "\n".join(graze) + "\n"
     if "--check" in sys.argv:
+        if GRAZING_OUT.read_text(encoding="utf-8") != graze_text:
+            sys.exit(f"{GRAZING_OUT} differs from the regenerated table")
         if OUT.read_text(encoding="utf-8") != text:
             sys.exit(f"{OUT} differs from the regenerated table")
         print(f"{OUT}: {len(lines) - 2} rows match")
     else:
         OUT.parent.mkdir(exist_ok=True)
         OUT.write_text(text, encoding="utf-8")
+        GRAZING_OUT.write_text(graze_text, encoding="utf-8")
+        print(f"wrote {GRAZING_OUT}: {len(graze) - 2} rows")
         print(f"wrote {OUT}: {len(lines) - 2} rows")
 
 
