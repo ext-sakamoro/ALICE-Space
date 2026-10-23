@@ -80,7 +80,7 @@ fn illumination_matches_the_integrated_overlap() {
         );
         compared += 1;
     }
-    assert_eq!(compared, 459);
+    assert_eq!(compared, 475);
     assert!(kinds.iter().all(|&k| k > 0), "{kinds:?}");
 }
 
@@ -186,4 +186,86 @@ fn degenerate_input_is_an_error() {
     // the satellite exactly between the Earth and the Sun is sunlit
     let i = earth_illumination([7000.0, 0.0, 0.0], sun).unwrap();
     assert_eq!((i.eclipse, i.fraction), (Eclipse::None, 1.0));
+}
+
+/// Grazing configurations (`tests/golden/eclipse_grazing.csv`): satellites
+/// 1e-13 to 1e-1 (relative offset) from every edge, and on both sides of the
+/// switch of the segment series (u = 0.25), against the circle-intersection
+/// formula at 50 digits. The kind must match, and the visible fraction must
+/// be inside [0, 1] with no clamping and within
+/// `4e-15 + 4ε·(2y·c + 2θ_b·b² + 2θ_a·a²)/(πa²)`: the first term is the
+/// evaluation (a few ulp of the area and of 1 − area/(πa²)), the second the
+/// propagation of the f64 angles a, b, c (each within 4ε relative of the
+/// exact ones) through ∂A/∂c = −2y, ∂A/∂b = 2θ_b·b, ∂A/∂a = 2θ_a·a.
+#[test]
+fn grazing_configurations_stay_within_the_derived_bound() {
+    let path = format!(
+        "{}/tests/golden/eclipse_grazing.csv",
+        env!("CARGO_MANIFEST_DIR")
+    );
+    let text = std::fs::read_to_string(&path).unwrap();
+    let mut compared = 0;
+    let mut switch_sides = [0usize; 2];
+    let mut worst: f64 = 0.0;
+    for line in text.lines().filter(|l| !l.starts_with('#')).skip(1) {
+        let r: Vec<&str> = line.split(',').collect();
+        let v = |i: usize| f(r[i]);
+        let got = conical_illumination(
+            [v(1), v(2), v(3)],
+            [v(4), v(5), v(6)],
+            [v(7), v(8), v(9)],
+            v(10),
+        )
+        .unwrap();
+        let want = match r[11] {
+            "none" => Eclipse::None,
+            "partial" => Eclipse::Partial,
+            "annular" => Eclipse::Annular,
+            "total" => Eclipse::Total,
+            k => panic!("{k}"),
+        };
+        assert_eq!(got.eclipse, want, "{line}");
+        let err = (got.fraction - v(12)).abs();
+        worst = alice_det_math::max64(worst, err);
+        let (a, b, c) = (
+            got.sun_angular_radius,
+            got.body_angular_radius,
+            got.separation,
+        );
+        let sensitivity = if want == Eclipse::Partial {
+            let y = alice_det_math::sqrt64((a + b + c) * (b + c - a) * (a + c - b) * (a + b - c))
+                / (2.0 * c);
+            let ta = alice_det_math::atan2_64(y, (c * c + a * a - b * b) / (2.0 * c));
+            let tb = alice_det_math::atan2_64(y, (c * c - a * a + b * b) / (2.0 * c));
+            (2.0 * y * c + 2.0 * tb * b * b + 2.0 * ta * a * a) / (core::f64::consts::PI * a * a)
+        } else {
+            // annular: 1 − b²/a², ∂/∂a and ∂/∂b of size 2b²/a² and 2b/a²·b
+            4.0 * b * b / (a * a)
+        };
+        let bound = 4e-15 + 4.0 * f64::EPSILON * sensitivity;
+        assert!(
+            err <= bound,
+            "{line}: {} off by {err:e} > {bound:e}",
+            got.fraction
+        );
+        assert!(
+            (0.0..=1.0).contains(&got.fraction),
+            "{line}: {}",
+            got.fraction
+        );
+        for k in [13, 14] {
+            if let Ok(u) = r[k].parse::<f64>() {
+                if (0.2499..0.2501).contains(&u) {
+                    switch_sides[usize::from(u >= 0.25)] += 1;
+                }
+            }
+        }
+        compared += 1;
+    }
+    assert_eq!(compared, 2424);
+    assert!(
+        switch_sides.iter().all(|&n| n > 0),
+        "both sides of the series switch: {switch_sides:?}"
+    );
+    assert!(worst > 0.0, "the comparison saw no rounding at all");
 }
