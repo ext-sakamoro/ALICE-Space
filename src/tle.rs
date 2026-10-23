@@ -278,25 +278,32 @@ fn parse_float(s: &str) -> Result<f64, TleError> {
 
 /// Parse the TLE assumed-decimal notation for BSTAR and n_ddot:
 /// e.g. `" 12345-3"` = `0.12345e-3`.
+///
+/// The number is written out as a decimal (`0.12345e-3`) and parsed once, which
+/// gives the nearest `f64` to the value the field denotes on every target (a
+/// mantissa multiplied by `10f64.powi(exponent)` can land one ulp away, and the
+/// precision of `powi` is unspecified).
 fn parse_assumed_decimal(s: &str) -> Result<f64, TleError> {
     let s = s.trim();
     if s.is_empty() {
         return Ok(0.0);
     }
-    let sign = if s.starts_with('-') { -1.0 } else { 1.0 };
+    let sign = if s.starts_with('-') { "-" } else { "" };
     let body = s.trim_start_matches(['+', '-']);
     // Split at the last '+' or '-' (the exponent sign).
     let (mantissa, exponent) = match body.rfind(['+', '-']) {
         Some(idx) if idx > 0 => (&body[..idx], &body[idx..]),
         _ => (body, "+0"),
     };
-    let mantissa_val: f64 = format!("0.{mantissa}")
-        .parse()
-        .map_err(|_| TleError::ParseNumber(s.to_owned()))?;
+    if mantissa.is_empty() || !mantissa.bytes().all(|b| b.is_ascii_digit()) {
+        return Err(TleError::ParseNumber(s.to_owned()));
+    }
     let exponent_val: i32 = exponent
         .parse()
         .map_err(|_| TleError::ParseNumber(s.to_owned()))?;
-    Ok(sign * mantissa_val * 10f64.powi(exponent_val))
+    format!("{sign}0.{mantissa}e{exponent_val}")
+        .parse()
+        .map_err(|_| TleError::ParseNumber(s.to_owned()))
 }
 
 /// Parse the eccentricity field as an implicit leading `0.`.
