@@ -166,6 +166,7 @@ pub extern "C" fn alice_space_walker_ground_track_period_s(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alice_det_math::sqrt64;
 
     const MU_EARTH: f64 = 398600.4418;
 
@@ -214,7 +215,11 @@ mod tests {
         unsafe {
             alice_space_rk4_single(state_in.as_ptr(), MU_EARTH, 60.0, state_out.as_mut_ptr());
         }
-        let r = (state_out[0].powi(2) + state_out[1].powi(2) + state_out[2].powi(2)).sqrt();
+        let r = sqrt64(
+            (state_out[0] * state_out[0])
+                + state_out[1] * state_out[1]
+                + state_out[2] * state_out[2],
+        );
         assert!((r - 6778.0).abs() < 50.0);
     }
 

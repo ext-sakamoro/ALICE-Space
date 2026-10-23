@@ -26,6 +26,8 @@
 //!
 //! Author: Moroya Sakamoto
 
+use alice_det_math::max64;
+
 use alice_space::sgp4::{GravityModel, MeanElements, OpsMode, Sgp4};
 use alice_space::tle;
 use sha2::{Digest, Sha256};
@@ -206,7 +208,7 @@ fn every_state_matches_vallados_reference_output() {
             compared += 1;
             for (k, (x, y)) in a.iter().zip(e).enumerate() {
                 let d = (x - y).abs();
-                worst = worst.max(d);
+                worst = max64(worst, d);
                 if d >= TOLERANCE {
                     differing.extend([format!("set {sat} t={} field {k}: {x} vs {y}", a[0])]);
                 }

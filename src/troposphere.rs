@@ -9,6 +9,8 @@
 //! measured meteorology or an ISO 2533 default derived from the user
 //! altitude alone.
 
+use alice_det_math::{cos64, exp64, max64, min64, powf64, sin64};
+
 use crate::geodetic::Geodetic;
 
 // ---------------------------------------------------------------------------
@@ -44,13 +46,13 @@ impl MetState {
         let sea_level_pressure = 1013.25;
         let sea_level_temperature = 288.15;
         let lapse_rate = 6.5e-3; // K / m
-        let alt_clamped = altitude_m.clamp(-500.0, 11_000.0);
+        let alt_clamped = min64(max64(altitude_m, -500.0), 11_000.0);
         let t = sea_level_temperature - lapse_rate * alt_clamped;
-        let p = sea_level_pressure * (t / sea_level_temperature).powf(5.2559);
+        let p = sea_level_pressure * powf64(t / sea_level_temperature, 5.2559);
         // Assume 50% relative humidity, using saturation vapour pressure from
         // Magnus formula.
         let t_c = t - 273.15;
-        let es = 6.112 * ((17.62 * t_c) / (243.12 + t_c)).exp();
+        let es = 6.112 * exp64((17.62 * t_c) / (243.12 + t_c));
         let e = 0.5 * es;
         Self::new(p, t, e)
     }
@@ -66,7 +68,7 @@ impl MetState {
 /// latitude/altitude term encoding the local gravity anomaly.
 #[must_use]
 pub fn zenith_hydrostatic_delay_m(met: MetState, lat_rad: f64, altitude_m: f64) -> f64 {
-    let cos_2phi = (2.0 * lat_rad).cos();
+    let cos_2phi = cos64(2.0 * lat_rad);
     let f = 1.0 - 0.002_66 * cos_2phi - 0.000_28 * altitude_m / 1000.0;
     // 0.0022768 m/hPa is the Saastamoinen constant for dry delay.
     0.002_276_8 * met.pressure_hpa / f
@@ -93,7 +95,7 @@ pub fn zenith_wet_delay_m(met: MetState) -> f64 {
 /// here as a public API for downstream refinement.
 #[must_use]
 pub fn simple_mapping_function(elevation_rad: f64) -> f64 {
-    let sin_e = elevation_rad.sin();
+    let sin_e = sin64(elevation_rad);
     if sin_e < 1e-6 {
         // Guard against horizon rays.
         1e6

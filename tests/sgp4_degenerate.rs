@@ -7,6 +7,8 @@
 //!
 //! Author: Moroya Sakamoto
 
+use alice_det_math::sqrt64;
+
 use alice_space::sgp4::{GravityModel, MeanElements, OpsMode, Sgp4, Sgp4Error, Sgp4InitError};
 
 /// A near-Earth set (ISS-like, 92 min, e = 0.0005) to vary one field at a time.
@@ -45,7 +47,7 @@ fn propagate(e: &MeanElements, t: f64) -> Result<[f64; 6], Sgp4Error> {
 #[test]
 fn the_base_set_propagates_to_a_low_earth_orbit_radius() {
     let s = propagate(&base(), 0.0).expect("propagates");
-    let r = (s[0] * s[0] + s[1] * s[1] + s[2] * s[2]).sqrt();
+    let r = sqrt64(s[0] * s[0] + s[1] * s[1] + s[2] * s[2]);
     assert!((6600.0..6900.0).contains(&r), "radius {r} km");
 }
 

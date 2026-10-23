@@ -9,6 +9,8 @@
 //! signal-quality tool that needs to isolate ionospheric anomalies (a common
 //! spoofing indicator).
 
+use alice_det_math::{cos64, max64, min64, sin64};
+
 use core::f64::consts::PI;
 
 // ---------------------------------------------------------------------------
@@ -83,22 +85,22 @@ pub fn klobuchar_delay_s(
     let psi = 0.0137 / (el_sc + 0.11) - 0.022;
 
     // 2. Sub-ionospheric latitude (semicircles), clamped to ±0.416.
-    let lat_i = (user_lat_sc + psi * azimuth_rad.cos()).clamp(-0.416, 0.416);
+    let lat_i = min64(max64(user_lat_sc + psi * cos64(azimuth_rad), -0.416), 0.416);
 
     // 3. Sub-ionospheric longitude (semicircles).
-    let denom = (lat_i * PI).cos();
-    let lon_i = user_lon_sc + psi * azimuth_rad.sin() / denom;
+    let denom = cos64(lat_i * PI);
+    let lon_i = user_lon_sc + psi * sin64(azimuth_rad) / denom;
     let _ = az_sc; // Not used directly (kept for spec alignment).
 
     // 4. Geomagnetic latitude of the sub-ionospheric point (semicircles).
-    let lat_m = lat_i + 0.064 * ((lon_i - 1.617) * PI).cos();
+    let lat_m = lat_i + 0.064 * cos64((lon_i - 1.617) * PI);
 
     // 5. Local time at the sub-ionospheric point (seconds), 0 <= t < 86400.
     let mut t = 43_200.0 * lon_i + gps_time_sec;
     t = t.rem_euclid(86_400.0);
 
     // 6. Slant factor (dimensionless).
-    let f = 1.0 + 16.0 * (0.53 - el_sc).powi(3);
+    let f = 1.0 + 16.0 * ((0.53 - el_sc) * (0.53 - el_sc) * (0.53 - el_sc));
 
     // 7. Amplitude of the cosine term (seconds).
     let mut amp = coeffs.alpha[0]
@@ -123,7 +125,7 @@ pub fn klobuchar_delay_s(
 
     // 10. Ionospheric delay (seconds).
     if x.abs() < 1.57 {
-        f * (5e-9 + amp * (1.0 - x * x / 2.0 + x.powi(4) / 24.0))
+        f * (5e-9 + amp * (1.0 - x * x / 2.0 + (x * x * x * x) / 24.0))
     } else {
         f * 5e-9
     }

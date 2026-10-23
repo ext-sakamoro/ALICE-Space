@@ -18,6 +18,8 @@
 // the index pairs the same axis of two 3-vectors
 #![allow(clippy::needless_range_loop)]
 
+use alice_det_math::{max64, sin_cos64};
+
 use alice_space::interp::{self, InterpError};
 
 /// `c[0] + c[1] t + c[2] t² + …` and its derivative.
@@ -54,8 +56,13 @@ fn nodes(count: usize) -> Vec<f64> {
         .collect()
 }
 
+/// `x` to the `n`th power by repeated multiplication.
+fn pow(x: f64, n: usize) -> f64 {
+    (0..n).fold(1.0, |acc, _| acc * x)
+}
+
 fn close(a: f64, b: f64, scale: f64) -> bool {
-    (a - b).abs() <= 1e-11 * scale.max(1.0)
+    (a - b).abs() <= 1e-11 * max64(scale, 1.0)
 }
 
 #[test]
@@ -74,7 +81,7 @@ fn lagrange_reproduces_polynomials_up_to_its_degree() {
                 let (p, dp) = interp::lagrange(&t, &values, degree, q).unwrap();
                 for k in 0..3 {
                     let (v, d) = poly(&c[k], q);
-                    let scale = c[k].iter().map(|x| x.abs()).sum::<f64>() * 3f64.powi(deg as i32);
+                    let scale = c[k].iter().map(|x| x.abs()).sum::<f64>() * pow(3.0, deg);
                     assert!(
                         close(p[k], v, scale),
                         "deg {degree} poly {deg} t={q}: {} vs {v}",
@@ -114,7 +121,7 @@ fn hermite_reproduces_polynomials_up_to_twice_its_nodes_minus_one() {
                 let (p, dp) = interp::hermite(&t, &pos, &vel, degree, q).unwrap();
                 for k in 0..3 {
                     let (v, d) = poly(&c[k], q);
-                    let scale = c[k].iter().map(|x| x.abs()).sum::<f64>() * 3f64.powi(deg as i32);
+                    let scale = c[k].iter().map(|x| x.abs()).sum::<f64>() * pow(3.0, deg);
                     assert!(
                         close(p[k], v, scale),
                         "Hermite {degree} poly {deg} t={q}: {} vs {v}",
@@ -143,7 +150,7 @@ fn circle(t: f64) -> ([f64; 3], [f64; 3]) {
     let w = 2.0 * core::f64::consts::PI / 5800.0;
     // the phase from the table start: w * 1e6 would round the angle to 2e-13 rad
     // (1.6e-9 km at 7000 km), larger than the interpolation error being measured
-    let (s, c) = (w * (t - T0)).sin_cos();
+    let (s, c) = sin_cos64(w * (t - T0));
     ([r * c, r * s, 0.0], [-r * w * s, r * w * c, 0.0])
 }
 
@@ -173,9 +180,9 @@ fn interpolating_a_circular_orbit_stays_within_the_error_bound() {
             let lag_nodes = &times[i - (count - 1) / 2..i - (count - 1) / 2 + count];
             let her_nodes = &times[i - (k - 1) / 2..i - (k - 1) / 2 + k];
             // error bounds of the centred windows at q: |f^(m)| <= R w^m for each axis
-            let lag_bound = r * w.powi(count as i32) / factorial(count)
+            let lag_bound = r * pow(w, count) / factorial(count)
                 * lag_nodes.iter().map(|&x| (q - x).abs()).product::<f64>();
-            let her_bound = r * w.powi(2 * k as i32) / factorial(2 * k)
+            let her_bound = r * pow(w, 2 * k) / factorial(2 * k)
                 * her_nodes
                     .iter()
                     .map(|&x| (q - x) * (q - x))

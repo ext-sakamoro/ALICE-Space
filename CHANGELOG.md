@@ -5,6 +5,7 @@ All notable changes to ALICE-Space will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- CI: `clippy.toml` の disallowed-methods (platform の `f64` 超越関数・`sqrt`・`powi` / `powf`・`mul_add`・`max` / `min` / `clamp`、壁時計、OS の乱数、thread) と `Clippy (determinism gate)` job (`cargo clippy --all-targets --all-features -D warnings`) が crate 全体を検査する
 - `eclipse`: `conical_illumination(sat, sun, body, body_radius)` と `earth_illumination(sat, sun)` が位置 (km) から太陽の見かけの円盤と遮蔽天体の円盤を比べ、`Eclipse::{None, Partial, Annular, Total}` と見える円盤の割合を返す (Montenbruck & Gill §3.4.2 の円錐影、金環を含む) 定数 `SUN_RADIUS_KM` (IAU 2015) / `EARTH_EQUATORIAL_RADIUS_KM` (WGS-84) / `MOON_RADIUS_KM`
 - `interp`: Lagrange (`lagrange`、位置と補間多項式の微分としての速度) と Hermite (`hermite`、位置と速度を節点で一致) 窓は時刻に中心を合わせた節点 (表の端では内側に寄せる、CCSDS 502.0 の次数の使い方) で、積は窓の最初の節点からの相対時刻で作る 試験 `tests/interp_oracle.rs`: 次数 n の Lagrange が n 次以下の多項式を値と微分で再現 (1 から 10 次)、k 節点の Hermite が 2k−1 次以下を再現、円軌道で中心を合わせた窓の誤差限界の内側、退化入力
 - `ccsds_odm`: CCSDS 502.0-B-3 の OEM (`parse_oem_kvn`、segment ごとの metadata・使える時間窓・`INTERPOLATION` / `INTERPOLATION_DEGREE`・7 列か 10 列の行、covariance の block は読み飛ばす) と OPM (`parse_opm_kvn`、状態 vector と Kepler 要素) を KVN で読む `OemSegment::state_at` が message の補間で状態を返す epoch は整数の日と日内の秒 (`OdmEpoch`) で持ち segment 内の相対時刻は精度を落とさない UTC の segment の閏秒 (23:59:60) は拒む (時刻系の表が要る) 試験 `tests/ccsds_odm_oracle.rs`: 円軌道を 60 s ごとに書いた OEM (Lagrange 7 次 / Hermite 5 次、2 segment、covariance と COMMENT つき) が行の間で閉形式を誤差限界内で再現、1 行おきに抜いた表が抜いた行を再現、日付をまたぐ segment、OPM、壊れた入力 17 種
@@ -22,6 +23,7 @@ All notable changes to ALICE-Space will be documented in this file.
 - 設定 file の comment を中身の説明だけにし、.gitignore を project の build 出力だけにした
 - ライセンス全文を公式の AGPL v3 に置き換え
 - TRADEMARK_NOTICE が指す licence の file を LICENSE-* の file にした
+- **Behavior change:** `autonomy` / `constellation` / `dop` / `geodetic` / `hopfield` / `ionosphere` / `link_budget` / `multipath` / `nequick` / `orbit` / `propagator` / `troposphere` / `tle` (平均運動からの長半径): platform の `sqrt`・三角・指数・対数・冪と `mul_add` を alice-det-math と積と和を分けた演算に置き換えた 結果の最後の bit が変わりうる (`sgp4` と `eclipse` は変わらない) 識別子は動かさない: この crate に Law・semantics id は無く、出力の bit を固定する golden は `sgp4` の walk (`tests/sgp4_vallado.rs` の `WALK_BITS_SHA256`、不変) だけ ALICE の各 repo の main でこの crate を引くのは ALICE-Eco-System の `bridge_space` / `bridge_space_cross` だけで、`CommLink` / `ControlDecision` / `MissionEvent` / `ModelDifferential` の値や hash を固定する assert は無い (2026-10-23、`git grep` で `SEMANTICS_ID` / `law_id` / 16 桁以上の hex / `alice_space` を全 repo の main に対して確認)
 - **Behavior change:** `interp::lagrange` / `interp::hermite`: 節点の数が奇数の窓を時刻に最も近い節点に中心を合わせる (それまでは時刻の前の節点に中心があり、後ろの節点の方が近い時は窓が 1 つ前にずれていた) 偶数の窓は変わらない 偶数次の Lagrange と奇数個の節点の Hermite で値が変わる
 
 ### Deprecated

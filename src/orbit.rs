@@ -1,5 +1,7 @@
 //! Orbital mechanics primitives.
 
+use alice_det_math::sqrt64;
+
 use std::f64::consts::PI;
 
 /// Unique body identifier.
@@ -56,25 +58,25 @@ impl CelestialBody {
 #[inline]
 #[must_use]
 pub fn orbital_period(semi_major_axis_km: f64, mu: f64) -> f64 {
-    2.0 * PI * (semi_major_axis_km.powi(3) / mu).sqrt()
+    2.0 * PI * sqrt64((semi_major_axis_km * semi_major_axis_km * semi_major_axis_km) / mu)
 }
 
 /// Vis-viva velocity: v = √(μ*(2/r - 1/a)) in km/s.
 #[inline]
 #[must_use]
 pub fn orbital_velocity(r_km: f64, a_km: f64, mu: f64) -> f64 {
-    (mu * (2.0 / r_km - 1.0 / a_km)).sqrt()
+    sqrt64(mu * (2.0 / r_km - 1.0 / a_km))
 }
 
 /// Hohmann transfer delta-v: returns (dv1, dv2) in km/s.
 #[must_use]
 pub fn delta_v_hohmann(r1_km: f64, r2_km: f64, mu: f64) -> (f64, f64) {
     let a_transfer = f64::midpoint(r1_km, r2_km);
-    let v1_circular = (mu / r1_km).sqrt();
+    let v1_circular = sqrt64(mu / r1_km);
     let v1_transfer = orbital_velocity(r1_km, a_transfer, mu);
     let dv1 = (v1_transfer - v1_circular).abs();
 
-    let v2_circular = (mu / r2_km).sqrt();
+    let v2_circular = sqrt64(mu / r2_km);
     let v2_transfer = orbital_velocity(r2_km, a_transfer, mu);
     let dv2 = (v2_circular - v2_transfer).abs();
 

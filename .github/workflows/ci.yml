@@ -21,6 +21,22 @@ jobs:
       - name: Check formatting
         run: cargo fmt -- --check
 
+  clippy:
+    name: Clippy (determinism gate)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - name: Clippy with clippy.toml's disallowed methods as errors
+        run: |
+          # the gate is clippy.toml: no platform libm, no fused multiply-add, no
+          # platform max / min anywhere in the crate; a missing list would lint nothing
+          grep -q '"f64::mul_add"' clippy.toml
+          grep -q '"f64::sin"' clippy.toml
+          cargo clippy --all-targets --all-features -- -D warnings
+
   actionlint:
     name: actionlint (workflow YAML 検証)
     runs-on: ubuntu-latest

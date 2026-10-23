@@ -17,7 +17,7 @@ Deep-space communication, autonomous trajectory control, and model-differential 
 - FNV-1a deterministic content hashing on all output types
 - CCSDS OMM (Orbit Mean-Elements Message) reader for SGP4 element sets in KVN, NDM XML, and CelesTrak's GP JSON / CSV, giving the same SGP4 input as the TLE of the same element set
 - CCSDS OEM / OPM (Orbit Ephemeris / Parameter Message, KVN) reader with the interpolation the message names, and Lagrange / Hermite interpolation shared with SP3 precise orbits (`Sp3File::interpolate`)
-- One dependency: `alice-det-math` (bit-identical `f64` transcendentals, used by the SGP4 and eclipse modules; only SGP4's output bits are pinned by a cross-platform golden, the other modules make no bit-identity claim yet)
+- One dependency: `alice-det-math`. Every module evaluates `sqrt`, the trigonometric, exponential and power functions and `max` / `min` through it and never fuses a multiply and an add (enforced over the whole crate by `clippy.toml`'s disallowed methods in CI), so no result depends on the platform's math library; SGP4's output bits are also pinned by a golden on Linux, macOS, Windows and wasm32
 
 ## Module Overview
 

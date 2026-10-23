@@ -22,6 +22,8 @@
 //!   toolkit for GPS/GLONASS data", GPS Solutions, 3(1), 42-49.
 //! - Kaplan, E. D. & Hegarty, C. J. (2017), §7.3 Multipath and Errors.
 
+use alice_det_math::sqrt64;
+
 use crate::cycle_slip::{L1_HZ, L2_HZ};
 
 const SPEED_OF_LIGHT_M_S: f64 = 299_792_458.0;
@@ -103,12 +105,15 @@ impl Detector {
         self.samples.push(sample_m);
         let mean = self.samples.iter().sum::<f64>() / (self.samples.len() as f64);
         let var = if self.samples.len() > 1 {
-            self.samples.iter().map(|v| (v - mean).powi(2)).sum::<f64>()
+            self.samples
+                .iter()
+                .map(|v| (v - mean) * (v - mean))
+                .sum::<f64>()
                 / ((self.samples.len() - 1) as f64)
         } else {
             0.0
         };
-        let std = var.sqrt();
+        let std = sqrt64(var);
         Report {
             window_len: self.samples.len(),
             mean_m: mean,

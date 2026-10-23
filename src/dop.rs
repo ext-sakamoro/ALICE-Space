@@ -19,6 +19,8 @@
 //! the local East-North-Up frame around the receiver's geodetic latitude and
 //! longitude.
 
+use alice_det_math::{max64, sin_cos64, sqrt64};
+
 use crate::geodetic::{ecef_to_geodetic, Ecef};
 
 // ---------------------------------------------------------------------------
@@ -58,7 +60,7 @@ pub fn compute_dop(receiver: Ecef, satellites: &[Ecef]) -> Option<DopValues> {
         let dx = sat.x_m - receiver.x_m;
         let dy = sat.y_m - receiver.y_m;
         let dz = sat.z_m - receiver.z_m;
-        let range = (dx * dx + dy * dy + dz * dz).sqrt();
+        let range = sqrt64(dx * dx + dy * dy + dz * dz);
         if range < 1.0 {
             // Coincident satellite/receiver.
             return None;
@@ -89,15 +91,15 @@ pub fn compute_dop(receiver: Ecef, satellites: &[Ecef]) -> Option<DopValues> {
         return None;
     }
 
-    let pdop = (sigma_x2 + sigma_y2 + sigma_z2).sqrt();
-    let tdop = sigma_t2.sqrt();
-    let gdop = (sigma_x2 + sigma_y2 + sigma_z2 + sigma_t2).sqrt();
+    let pdop = sqrt64(sigma_x2 + sigma_y2 + sigma_z2);
+    let tdop = sqrt64(sigma_t2);
+    let gdop = sqrt64(sigma_x2 + sigma_y2 + sigma_z2 + sigma_t2);
 
     // Rotate the 3x3 position block of Q into East-North-Up around the
     // receiver's geodetic latitude and longitude.
     let g_pos = ecef_to_geodetic(receiver);
-    let (sin_lat, cos_lat) = g_pos.lat_rad.sin_cos();
-    let (sin_lon, cos_lon) = g_pos.lon_rad.sin_cos();
+    let (sin_lat, cos_lat) = sin_cos64(g_pos.lat_rad);
+    let (sin_lon, cos_lon) = sin_cos64(g_pos.lon_rad);
 
     // Rotation from ECEF to ENU is:
     // R = [[-sin_lon,          cos_lon,          0     ],
@@ -127,12 +129,12 @@ pub fn compute_dop(receiver: Ecef, satellites: &[Ecef]) -> Option<DopValues> {
         q_enu_diag[i] = rq[0] * r[i][0] + rq[1] * r[i][1] + rq[2] * r[i][2];
     }
 
-    let east2 = q_enu_diag[0].max(0.0);
-    let north2 = q_enu_diag[1].max(0.0);
-    let up2 = q_enu_diag[2].max(0.0);
+    let east2 = max64(q_enu_diag[0], 0.0);
+    let north2 = max64(q_enu_diag[1], 0.0);
+    let up2 = max64(q_enu_diag[2], 0.0);
 
-    let hdop = (east2 + north2).sqrt();
-    let vdop = up2.sqrt();
+    let hdop = sqrt64(east2 + north2);
+    let vdop = sqrt64(up2);
 
     Some(DopValues {
         gdop,
@@ -351,7 +353,7 @@ mod tests {
     fn gdop_is_composed_of_pdop_and_tdop() {
         let receiver = tokyo();
         let dop = compute_dop(receiver, &tetrahedron_sats()).unwrap();
-        let sum = (dop.pdop * dop.pdop + dop.tdop * dop.tdop).sqrt();
+        let sum = sqrt64(dop.pdop * dop.pdop + dop.tdop * dop.tdop);
         assert!((sum - dop.gdop).abs() < 1e-9);
     }
 
@@ -359,7 +361,7 @@ mod tests {
     fn pdop_is_composed_of_hdop_and_vdop() {
         let receiver = tokyo();
         let dop = compute_dop(receiver, &tetrahedron_sats()).unwrap();
-        let sum = (dop.hdop * dop.hdop + dop.vdop * dop.vdop).sqrt();
+        let sum = sqrt64(dop.hdop * dop.hdop + dop.vdop * dop.vdop);
         assert!((sum - dop.pdop).abs() < 1e-9);
     }
 

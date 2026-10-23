@@ -1,0 +1,71 @@
+# Determinism gates. Every function in this crate is a pure function of its input
+# bits on every target: no wall clock, no OS entropy, no thread, no platform libm.
+disallowed-methods = [
+    { path = "std::time::Instant::now", reason = "the wall clock makes results depend on timing; pass time in or use a step count" },
+    { path = "std::time::Instant::elapsed", reason = "reads the wall clock the same as Instant::now; duration_since on an already-held value is fine, this reads the clock again" },
+    { path = "std::time::SystemTime::elapsed", reason = "reads the wall clock the same as SystemTime::now; duration_since on an already-held value is fine, this reads the clock again" },
+    { path = "std::time::SystemTime::now", reason = "the wall clock makes results depend on timing; pass time in or use a step count" },
+    { path = "std::collections::hash_map::RandomState::new", reason = "seeds from OS randomness, which this crate's output must never depend on" },
+    # ALICE-Law G2: the platform max / min leave the sign of a zero result and the NaN case to the target; use alice_det_math::{max, min, max64, min64} or simd::{max, min}
+    { path = "f32::max", reason = "ALICE-Law G2: not IEEE maximumNumber / minimumNumber (the zero sign is platform-dependent); use the crate's max helper" },
+    { path = "f32::min", reason = "ALICE-Law G2: not IEEE maximumNumber / minimumNumber (the zero sign is platform-dependent); use the crate's min helper" },
+    { path = "f32::clamp", reason = "ALICE-Law G2: not IEEE maximumNumber / minimumNumber (the zero sign is platform-dependent); use the crate's clamp helper" },
+    { path = "f64::max", reason = "ALICE-Law G2: not IEEE maximumNumber / minimumNumber (the zero sign is platform-dependent); use the crate's max64 helper" },
+    { path = "f64::min", reason = "ALICE-Law G2: not IEEE maximumNumber / minimumNumber (the zero sign is platform-dependent); use the crate's min64 helper" },
+    { path = "f64::clamp", reason = "ALICE-Law G2: not IEEE maximumNumber / minimumNumber (the zero sign is platform-dependent); use the crate's clamp64 helper" },
+    # ALICE-Law G13: no result may be combined across threads (the crate is single-threaded)
+    { path = "std::thread::spawn", reason = "ALICE-Law G13: a result combined across threads can depend on the thread count and scheduling" },
+    { path = "std::thread::scope", reason = "ALICE-Law G13: a result combined across threads can depend on the thread count and scheduling" },
+    # Determinism: every f64 transcendental goes through alice-det-math (the platform libm
+    # differs in the last ulp between targets); mul_add would fuse a product and a sum
+    # that the reference computes separately
+    { path = "f64::sin", reason = "platform libm differs between targets; use alice_det_math::sin64" },
+    { path = "f64::cos", reason = "platform libm differs between targets; use alice_det_math::cos64" },
+    { path = "f64::tan", reason = "platform libm differs between targets; use alice_det_math::tan64" },
+    { path = "f64::sin_cos", reason = "platform libm differs between targets; use alice_det_math::sin_cos64" },
+    { path = "f64::asin", reason = "platform libm differs between targets; use alice_det_math::asin64" },
+    { path = "f64::acos", reason = "platform libm differs between targets; use alice_det_math::acos64" },
+    { path = "f64::atan", reason = "platform libm differs between targets; use alice_det_math::atan64" },
+    { path = "f64::atan2", reason = "platform libm differs between targets; use alice_det_math::atan2_64" },
+    { path = "f64::exp", reason = "platform libm differs between targets; use alice_det_math::exp64" },
+    { path = "f64::ln", reason = "platform libm differs between targets; use alice_det_math::ln64" },
+    { path = "f64::log2", reason = "platform libm differs between targets; use alice_det_math::log2_64" },
+    { path = "f64::log10", reason = "platform libm differs between targets; use alice_det_math::log10_64" },
+    { path = "f64::powf", reason = "platform libm differs between targets; use alice_det_math::powf64" },
+    { path = "f64::sqrt", reason = "platform libm differs between targets; use alice_det_math::sqrt64" },
+    { path = "f64::exp2", reason = "not bit-identical across targets (platform libm or fused rounding); not used by this crate" },
+    { path = "f64::exp_m1", reason = "not bit-identical across targets (platform libm or fused rounding); not used by this crate" },
+    { path = "f64::ln_1p", reason = "not bit-identical across targets (platform libm or fused rounding); not used by this crate" },
+    { path = "f64::log", reason = "not bit-identical across targets (platform libm or fused rounding); not used by this crate" },
+    { path = "f64::powi", reason = "not bit-identical across targets (platform libm or fused rounding); not used by this crate" },
+    { path = "f64::cbrt", reason = "not bit-identical across targets (platform libm or fused rounding); not used by this crate" },
+    { path = "f64::hypot", reason = "not bit-identical across targets (platform libm or fused rounding); not used by this crate" },
+    { path = "f64::sinh", reason = "not bit-identical across targets (platform libm or fused rounding); not used by this crate" },
+    { path = "f64::cosh", reason = "not bit-identical across targets (platform libm or fused rounding); not used by this crate" },
+    { path = "f64::tanh", reason = "not bit-identical across targets (platform libm or fused rounding); not used by this crate" },
+    { path = "f64::asinh", reason = "not bit-identical across targets (platform libm or fused rounding); not used by this crate" },
+    { path = "f64::acosh", reason = "not bit-identical across targets (platform libm or fused rounding); not used by this crate" },
+    { path = "f64::atanh", reason = "not bit-identical across targets (platform libm or fused rounding); not used by this crate" },
+    { path = "f64::mul_add", reason = "not bit-identical across targets (platform libm or fused rounding); not used by this crate" },
+    { path = "f32::sin", reason = "platform libm differs between targets; use the alice-det-math f32 function" },
+    { path = "f32::cos", reason = "platform libm differs between targets; use the alice-det-math f32 function" },
+    { path = "f32::tan", reason = "platform libm differs between targets; use the alice-det-math f32 function" },
+    { path = "f32::sqrt", reason = "platform libm differs between targets; use the alice-det-math f32 function" },
+    { path = "f32::exp", reason = "platform libm differs between targets; use the alice-det-math f32 function" },
+    { path = "f32::ln", reason = "platform libm differs between targets; use the alice-det-math f32 function" },
+    { path = "f32::powf", reason = "platform libm differs between targets; use the alice-det-math f32 function" },
+    { path = "f32::mul_add", reason = "platform libm differs between targets; use the alice-det-math f32 function" },
+]
+
+disallowed-types = [
+    # disallowed-methods cannot name RandomState::default (a trait method,
+    # not reachable via the implementing type's path alone); naming the type
+    # itself here catches ::default() too, along with any other explicit
+    # naming (a type annotation, a turbofish), without touching HashMap::new's
+    # own internal (unnamed) use of RandomState.
+    { path = "std::collections::hash_map::RandomState", reason = "seeds from OS randomness, which this crate's output must never depend on; see disallowed-methods for RandomState::new" },
+    # ALICE-Law G13: an iteration order Rust leaves unspecified must not reach an output
+    { path = "std::collections::hash_map::HashMap", reason = "ALICE-Law G13: iteration order is unspecified and differs between runs; use BTreeMap (key order)" },
+    { path = "std::collections::hash_set::HashSet", reason = "ALICE-Law G13: iteration order is unspecified and differs between runs; use BTreeSet (key order)" },
+    { path = "std::thread::Builder", reason = "ALICE-Law G13: spawns a thread; the crate is single-threaded" },
+]
