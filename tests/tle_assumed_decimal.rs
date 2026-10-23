@@ -48,7 +48,10 @@ fn written_out(field: &str) -> String {
         b'+' => ("", &f[1..]),
         _ => ("", f),
     };
-    let cut = body.rfind(['+', '-']).filter(|&i| i > 0).unwrap_or(body.len());
+    let cut = body
+        .rfind(['+', '-'])
+        .filter(|&i| i > 0)
+        .unwrap_or(body.len());
     let exponent = if cut == body.len() { "0" } else { &body[cut..] };
     format!("{sign}0.{}e{exponent}", &body[..cut])
 }

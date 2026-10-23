@@ -68,6 +68,7 @@ pub mod link_budget;
 pub mod mission;
 pub mod multipath;
 pub mod nequick;
+pub mod omm;
 pub mod orbit;
 pub mod propagator;
 pub mod qzss_l1s;

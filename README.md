@@ -15,6 +15,7 @@ Deep-space communication, autonomous trajectory control, and model-differential 
 - Decision-tree fault detection (sensor anomaly, thruster degradation, comm loss, power fault, attitude error)
 - Append-only mission event log with delta-v accounting and phase filtering
 - FNV-1a deterministic content hashing on all output types
+- CCSDS OMM (Orbit Mean-Elements Message) reader for SGP4 element sets in KVN, NDM XML, and CelesTrak's GP JSON / CSV, giving the same SGP4 input as the TLE of the same element set
 - One dependency: `alice-det-math` (bit-identical `f64` transcendentals for the SGP4 module)
 
 ## Module Overview
@@ -23,6 +24,7 @@ Deep-space communication, autonomous trajectory control, and model-differential 
 |---|---|---|
 | `orbit` | `OrbitalElements`, `SpacecraftState`, `CelestialBody`, `BodyId` | Keplerian elements, state vectors, and orbital mechanics primitives |
 | `propagator` | `TwoBodyAccel`, `propagate_rk4`, `propagate_rk4_single` | 4th-order Runge-Kutta two-body orbit integration |
+| `omm` | `Omm`, `OmmError`, `parse_kvn`, `parse_xml`, `parse_json`, `parse_csv` | CCSDS 502.0-B-3 OMM element sets for SGP4 (KVN / XML / CelesTrak JSON and CSV) |
 | `sgp4` | `Sgp4`, `MeanElements`, `TemeState`, `GravityModel`, `OpsMode` | SGP4 / SDP4 analytical propagation of TLE mean elements (TEME km, km/s) |
 | `comm` | `CommLink`, `ModelDifferential` | Deep-space link latency, bandwidth windows, and compact parameter differentials |
 | `autonomy` | `TrajectoryModel`, `ControlDecision`, `DecisionNode`, `FaultType`, `AutonomyLevel` | Polynomial trajectory models, correction computation, and fault detection |

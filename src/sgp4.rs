@@ -145,13 +145,34 @@ impl MeanElements {
 
 /// Days since 1949 December 31 00:00 of day `day_of_year` (1.0 = January 1
 /// 00:00) of `year`.
+///
+/// The reference forms the epoch through the Julian date (about 2.46 × 10⁶ days,
+/// whose `f64` spacing is about 40 µs) and subtracts 2433281.5 afterwards; its
+/// verification output depends on that rounding (the epoch enters the sidereal
+/// time and the lunar / solar terms), so the same arithmetic is kept here: an
+/// epoch counted directly from 1950 moves 38 fields of the verification walk by
+/// up to 4e-6 km. Both the TLE and the OMM epoch go through this function.
 #[must_use]
 pub fn epoch_days_since_1950(year: u32, day_of_year: f64) -> f64 {
-    let y = f64::from(year);
-    // Julian date of January 1 00:00 of `year` (Vallado's jday with m = 1, d = 1)
-    let jd_jan1 =
-        367.0 * y - (7.0 * y / 4.0).floor() + (275.0 / 9.0f64).floor() + 1.0 + 1_721_013.5;
+    #[allow(clippy::cast_precision_loss)] // a day count far below 2^53
+    let jd_jan1 = (days_from_1949_12_31(i64::from(year), 1, 1) as f64) + 2_433_281.5;
     jd_jan1 + (day_of_year - 1.0) - 2_433_281.5
+}
+
+/// Whole days from 1949 December 31 to `year`-`month`-`day` (proleptic
+/// Gregorian calendar).
+#[must_use]
+pub(crate) fn days_from_1949_12_31(year: i64, month: i64, day: i64) -> i64 {
+    // days from the civil date (H. Hinnant's algorithm), relative to 1970-01-01
+    let y = if month <= 2 { year - 1 } else { year };
+    let era = y.div_euclid(400);
+    let yoe = y - era * 400;
+    let mp = (month + 9) % 12;
+    let doy = (153 * mp + 2) / 5 + day - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    let from_1970 = era * 146_097 + doe - 719_468;
+    // 1949-12-31 is 7306 days before 1970-01-01
+    from_1970 + 7306
 }
 
 /// Why a propagation has no state, with the value that failed the check (the
