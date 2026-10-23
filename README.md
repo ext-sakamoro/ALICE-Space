@@ -29,6 +29,7 @@ Deep-space communication, autonomous trajectory control, and model-differential 
 | `interp` | `lagrange`, `hermite`, `InterpError` | Lagrange and Hermite interpolation of tabulated trajectories (centred window, relative times) |
 | `omm` | `Omm`, `OmmError`, `parse_kvn`, `parse_xml`, `parse_json`, `parse_csv` | CCSDS 502.0-B-3 OMM element sets for SGP4 (KVN / XML / CelesTrak JSON and CSV) |
 | `sgp4` | `Sgp4`, `MeanElements`, `TemeState`, `GravityModel`, `OpsMode` | SGP4 / SDP4 analytical propagation of TLE mean elements (TEME km, km/s) |
+| `eclipse` | `conical_illumination`, `earth_illumination`, `Eclipse`, `Illumination` | Conical umbra / penumbra / annular eclipse of the Sun by a spherical body from positions, with the visible fraction of the disk |
 | `comm` | `CommLink`, `ModelDifferential` | Deep-space link latency, bandwidth windows, and compact parameter differentials |
 | `autonomy` | `TrajectoryModel`, `ControlDecision`, `DecisionNode`, `FaultType`, `AutonomyLevel` | Polynomial trajectory models, correction computation, and fault detection |
 | `constellation` | `WalkerConstellation`, `WalkerSatellite` | Walker Delta Pattern satellite constellation layout generator |

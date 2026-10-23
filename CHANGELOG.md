@@ -5,6 +5,7 @@ All notable changes to ALICE-Space will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- `eclipse`: `conical_illumination(sat, sun, body, body_radius)` と `earth_illumination(sat, sun)` が位置 (km) から太陽の見かけの円盤と遮蔽天体の円盤を比べ、`Eclipse::{None, Partial, Annular, Total}` と見える円盤の割合を返す (Montenbruck & Gill §3.4.2 の円錐影、金環を含む) 定数 `SUN_RADIUS_KM` (IAU 2015) / `EARTH_EQUATORIAL_RADIUS_KM` (WGS-84) / `MOON_RADIUS_KM`
 - `interp`: Lagrange (`lagrange`、位置と補間多項式の微分としての速度) と Hermite (`hermite`、位置と速度を節点で一致) 窓は時刻に中心を合わせた節点 (表の端では内側に寄せる、CCSDS 502.0 の次数の使い方) で、積は窓の最初の節点からの相対時刻で作る 試験 `tests/interp_oracle.rs`: 次数 n の Lagrange が n 次以下の多項式を値と微分で再現 (1 から 10 次)、k 節点の Hermite が 2k−1 次以下を再現、円軌道で中心を合わせた窓の誤差限界の内側、退化入力
 - `ccsds_odm`: CCSDS 502.0-B-3 の OEM (`parse_oem_kvn`、segment ごとの metadata・使える時間窓・`INTERPOLATION` / `INTERPOLATION_DEGREE`・7 列か 10 列の行、covariance の block は読み飛ばす) と OPM (`parse_opm_kvn`、状態 vector と Kepler 要素) を KVN で読む `OemSegment::state_at` が message の補間で状態を返す epoch は整数の日と日内の秒 (`OdmEpoch`) で持ち segment 内の相対時刻は精度を落とさない UTC の segment の閏秒 (23:59:60) は拒む (時刻系の表が要る) 試験 `tests/ccsds_odm_oracle.rs`: 円軌道を 60 s ごとに書いた OEM (Lagrange 7 次 / Hermite 5 次、2 segment、covariance と COMMENT つき) が行の間で閉形式を誤差限界内で再現、1 行おきに抜いた表が抜いた行を再現、日付をまたぐ segment、OPM、壊れた入力 17 種
 - `sp3`: `Sp3File::interpolate(prn, unix_seconds, degree)` が `interp::lagrange` で衛星の位置を補間する (位置が全て 0 の欠測の行は節点にしない) 試験 `tests/sp3_interp.rs`: GPS 型の円軌道を 15 分ごとに 1e-6 km で書いた SP3 を 9 次で補間して閉形式を 5e-6 km 以内で再現、欠測の epoch をまたいでも同じ
@@ -21,6 +22,9 @@ All notable changes to ALICE-Space will be documented in this file.
 - 設定 file の comment を中身の説明だけにし、.gitignore を project の build 出力だけにした
 - ライセンス全文を公式の AGPL v3 に置き換え
 - TRADEMARK_NOTICE が指す licence の file を LICENSE-* の file にした
+
+### Deprecated
+- `eclipse::shadow_state` / `eclipse::earth_shadow` / `eclipse::eclipse_fraction`: 円錐でなく円筒の近似 (本影は距離によらず天体半径の円筒、半影は固定係数で広げた円筒、金環なし) `conical_illumination` / `earth_illumination` に移る 次の minor で削除 2026-10-23 の時点で ALICE の他の repo (origin/main) に呼び出し元は無い 移行が要るのはこの crate の再 export (`lib.rs`) だけ 非推奨にした関数の `mul_add` と platform の `asin` は alice-det-math の算術に置き換えた
 
 ### Fixed
 - `tle::parse`: BSTAR と平均運動の 2 階微分 (仮定小数の field、例 ` -22483-4`) を `仮数 × 10f64.powi(指数)` でなく小数の文字列 (`-0.22483e-4`) を 1 回 parse して作る `powi` の精度は規定されておらず、Vallado の検証 TLE と CelesTrak の 2 組の 70 field のうち 6 field が正しく丸めた値から 1 ulp ずれていた 試験 `tests/tle_assumed_decimal.rs` (70 field 全てが正しく丸めた値と bit 一致)
