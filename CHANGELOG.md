@@ -5,6 +5,7 @@ All notable changes to ALICE-Space will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- `law`: `Law` と識別子 `SGP4_AFSPC_WGS72` / `ODM_INTERP_LAGRANGE` / `ODM_INTERP_HERMITE` / `ECLIPSE_CONICAL` (各 `*_ID: [u8; 32]`、`law::ALL`) 識別子は名前・定数・alice-det-math の `SEMANTICS_ID` (超越関数を使う Law)・固定した入力格子での出力の digest の SHA-256 で、意味が変わる時だけ動く 初出なので以前の値は無い
 - CI: `clippy.toml` の disallowed-methods (platform の `f64` 超越関数・`sqrt`・`powi` / `powf`・`mul_add`・`max` / `min` / `clamp`、壁時計、OS の乱数、thread) と `Clippy (determinism gate)` job (`cargo clippy --all-targets --all-features -D warnings`) が crate 全体を検査する
 - `eclipse`: `conical_illumination(sat, sun, body, body_radius)` と `earth_illumination(sat, sun)` が位置 (km) から太陽の見かけの円盤と遮蔽天体の円盤を比べ、`Eclipse::{None, Partial, Annular, Total}` と見える円盤の割合を返す (Montenbruck & Gill §3.4.2 の円錐影、金環を含む) 定数 `SUN_RADIUS_KM` (IAU 2015) / `EARTH_EQUATORIAL_RADIUS_KM` (WGS-84) / `MOON_RADIUS_KM`
 - `interp`: Lagrange (`lagrange`、位置と補間多項式の微分としての速度) と Hermite (`hermite`、位置と速度を節点で一致) 窓は時刻に中心を合わせた節点 (表の端では内側に寄せる、CCSDS 502.0 の次数の使い方) で、積は窓の最初の節点からの相対時刻で作る 試験 `tests/interp_oracle.rs`: 次数 n の Lagrange が n 次以下の多項式を値と微分で再現 (1 から 10 次)、k 節点の Hermite が 2k−1 次以下を再現、円軌道で中心を合わせた窓の誤差限界の内側、退化入力
