@@ -102,9 +102,14 @@ pub fn third_body(r: [f64; 3], s: [f64; 3], mu: f64) -> [f64; 3] {
     let r2s = [r[0] - 2.0 * s[0], r[1] - 2.0 * s[1], r[2] - 2.0 * s[2]];
     let q = (r[0] * r2s[0] + r[1] * r2s[1] + r[2] * r2s[2]) / ss;
     let opq = 1.0 + q;
-    // the body at the satellite gives r + f(−1) s = 0 against k = −∞, and the
-    // body at the centre q = ∞ and d2 = 0·∞: both NaN without a branch
     let d2 = ss * opq;
+    // the body at the satellite (d2 = 0), at the centre (q = ∞, d2 = 0·∞) or a
+    // NaN input: the canonical NaN, explicitly. The arithmetic would give NaN
+    // too, but its bits differ by target (x86 sets the sign bit, ARM does
+    // not), and the Law's identifier hashes the output bits
+    if d2.is_nan() || d2 <= 0.0 {
+        return [f64::NAN; 3];
+    }
     let opq32 = opq * sqrt64(opq);
     let f = q * (3.0 + q * (3.0 + q)) / (1.0 + opq32);
     let k = -mu / (d2 * sqrt64(d2));

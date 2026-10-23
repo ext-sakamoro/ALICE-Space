@@ -78,18 +78,22 @@ fn third_body_matches_the_60_digit_difference() {
 }
 
 /// The body at the satellite's position, at the centre, or a NaN input give
-/// NaN rather than a finite value; the satellite at the centre feels no tidal
-/// acceleration (r = 0: a = −μ₃(−s/|s|³ + s/|s|³) = 0).
+/// the canonical NaN (the same bits on every target: an arithmetic NaN has the
+/// sign bit set on x86 and not on ARM) rather than a finite value; the
+/// satellite at the centre feels no tidal acceleration
+/// (r = 0: a = −μ₃(−s/|s|³ + s/|s|³) = 0).
 #[test]
 fn degenerate_positions() {
     let s = [149_597_870.7, 0.0, 0.0];
     let mu = 1.327_124_400_412_794e11;
     assert_eq!(third_body([0.0; 3], s, mu), [0.0; 3]);
-    assert!(third_body(s, s, mu).iter().all(|v| v.is_nan()));
+    assert!(third_body(s, s, mu)
+        .iter()
+        .all(|v| v.to_bits() == f64::NAN.to_bits()));
     assert!(third_body([7000.0, 0.0, 0.0], [0.0; 3], mu)
         .iter()
-        .all(|v| v.is_nan()));
+        .all(|v| v.to_bits() == f64::NAN.to_bits()));
     assert!(third_body([f64::NAN, 0.0, 0.0], s, mu)
         .iter()
-        .all(|v| v.is_nan()));
+        .all(|v| v.to_bits() == f64::NAN.to_bits()));
 }
