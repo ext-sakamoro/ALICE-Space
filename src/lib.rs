@@ -66,6 +66,7 @@ pub mod geodetic;
 pub mod hopfield;
 pub mod interp;
 pub mod ionosphere;
+pub mod law;
 pub mod link_budget;
 pub mod mission;
 pub mod multipath;
