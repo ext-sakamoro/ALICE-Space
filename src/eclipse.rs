@@ -1,71 +1,216 @@
-//! Eclipse / shadow detection for spacecraft visibility windows.
+//! Eclipses of the Sun seen from a spacecraft.
 //!
-//! Determines whether a spacecraft at orbital altitude is in the
-//! shadow of a celestial body (eclipse) or illuminated by the sun.
-//! Uses cylindrical shadow model for computational efficiency.
+//! The conical model ([`conical_illumination`], [`earth_illumination`]) takes
+//! the positions of the satellite, the Sun and the occulting body in one frame
+//! (kilometres) and compares the apparent disks of the Sun (radius `a`) and
+//! of the body (radius `b`) at their angular separation `c` (Montenbruck &
+//! Gill, *Satellite Orbits*, §3.4.2):
+//!
+//! - `c ≥ a + b`: no eclipse, the whole disk is visible;
+//! - `c ≤ b − a`: total (umbra), nothing is visible;
+//! - `c ≤ a − b`: annular, the body is inside the disk, `1 − b²/a²` visible;
+//! - otherwise partial (penumbra), `1 − A/(πa²)` visible with `A` the area of
+//!   the overlap of the two disks.
+//!
+//! The disks are treated as flat circles of angular radius (the angles are
+//! below 0.27° for the Sun seen from near the Earth) and the body as a sphere
+//! without atmosphere. Every transcendental is alice-det-math's.
+//!
+//! The older functions ([`shadow_state`], [`earth_shadow`],
+//! [`eclipse_fraction`]) are a cylinder approximation and are deprecated.
+
+use alice_det_math::{acos64, asin64, atan2_64, sqrt64};
 
 // ── Constants ──────────────────────────────────────────────────────────
 
-/// 地球の平均半径 (km)。
+/// Mean Earth radius used by the deprecated cylinder functions (km).
 const EARTH_RADIUS_KM: f64 = 6371.0;
 
-/// 太陽の平均半径 (km)。
-const SUN_RADIUS_KM: f64 = 695_700.0;
+/// Nominal solar radius (IAU 2015 Resolution B3), km.
+pub const SUN_RADIUS_KM: f64 = 695_700.0;
 
-/// 地球−太陽の平均距離 (km)。
+/// Earth equatorial radius (WGS-84), km.
+pub const EARTH_EQUATORIAL_RADIUS_KM: f64 = 6378.137;
+
+/// Mean lunar radius (IAU), km.
+pub const MOON_RADIUS_KM: f64 = 1737.4;
+
+/// Mean Earth–Sun distance used by the deprecated cylinder functions (km).
 const EARTH_SUN_DISTANCE_KM: f64 = 149_597_870.7;
 
-// ── Shadow Model ───────────────────────────────────────────────────────
+// ── Conical model ──────────────────────────────────────────────────────
 
-/// 日食/影の種別。
+/// What the occulting body hides of the Sun, seen from the satellite.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Eclipse {
+    /// The whole disk of the Sun is visible.
+    None,
+    /// The body covers part of the disk (penumbra).
+    Partial,
+    /// The body lies inside the disk, a ring of the Sun is visible.
+    Annular,
+    /// The body covers the whole disk (umbra).
+    Total,
+}
+
+/// The illumination of a satellite by the Sun past one occulting body.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Illumination {
+    /// The kind of eclipse.
+    pub eclipse: Eclipse,
+    /// Visible fraction of the Sun's disk, 0 (total) to 1 (none).
+    pub fraction: f64,
+    /// Apparent radius of the Sun, radians.
+    pub sun_angular_radius: f64,
+    /// Apparent radius of the body, radians.
+    pub body_angular_radius: f64,
+    /// Angle between the directions to the Sun and to the body, radians.
+    pub separation: f64,
+}
+
+/// Why the illumination cannot be computed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum EclipseError {
+    /// A coordinate or the radius is not finite, or the radius is not positive.
+    NonFinite,
+    /// The satellite is inside (or on) the occulting body.
+    InsideBody,
+    /// The satellite is inside (or on) the Sun.
+    InsideSun,
+}
+
+impl core::fmt::Display for EclipseError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(match self {
+            Self::NonFinite => "non-finite position or non-positive radius",
+            Self::InsideBody => "the satellite is inside the occulting body",
+            Self::InsideSun => "the satellite is inside the Sun",
+        })
+    }
+}
+
+impl std::error::Error for EclipseError {}
+
+fn sub(a: [f64; 3], b: [f64; 3]) -> [f64; 3] {
+    [a[0] - b[0], a[1] - b[1], a[2] - b[2]]
+}
+
+fn dot(a: [f64; 3], b: [f64; 3]) -> f64 {
+    a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+}
+
+fn cross(a: [f64; 3], b: [f64; 3]) -> [f64; 3] {
+    [
+        a[1] * b[2] - a[2] * b[1],
+        a[2] * b[0] - a[0] * b[2],
+        a[0] * b[1] - a[1] * b[0],
+    ]
+}
+
+fn norm(a: [f64; 3]) -> f64 {
+    sqrt64(dot(a, a))
+}
+
+/// The illumination of a satellite at `sat` by the Sun at `sun` (radius
+/// [`SUN_RADIUS_KM`]) past a spherical body of radius `body_radius` at
+/// `body`, all positions in one frame, in kilometres.
+pub fn conical_illumination(
+    sat: [f64; 3],
+    sun: [f64; 3],
+    body: [f64; 3],
+    body_radius: f64,
+) -> Result<Illumination, EclipseError> {
+    let finite = sat.iter().chain(&sun).chain(&body).all(|v| v.is_finite());
+    if !finite || !body_radius.is_finite() || body_radius <= 0.0 {
+        return Err(EclipseError::NonFinite);
+    }
+    let to_sun = sub(sun, sat);
+    let to_body = sub(body, sat);
+    let (d_sun, d_body) = (norm(to_sun), norm(to_body));
+    if d_body <= body_radius {
+        return Err(EclipseError::InsideBody);
+    }
+    if d_sun <= SUN_RADIUS_KM {
+        return Err(EclipseError::InsideSun);
+    }
+    let a = asin64(SUN_RADIUS_KM / d_sun);
+    let b = asin64(body_radius / d_body);
+    // atan2 of |u × v| and u · v keeps the digits of small separations
+    let c = atan2_64(norm(cross(to_sun, to_body)), dot(to_sun, to_body));
+    let (eclipse, fraction) = if c >= a + b {
+        (Eclipse::None, 1.0)
+    } else if c <= b - a {
+        (Eclipse::Total, 0.0)
+    } else if c <= a - b {
+        (Eclipse::Annular, 1.0 - (b * b) / (a * a))
+    } else {
+        // overlap of disks a and b at distance c: the chord through both
+        // crossing points is at x from the centre of the Sun's disk
+        let x = (c * c + a * a - b * b) / (2.0 * c);
+        let y = sqrt64(a * a - x * x);
+        let area = a * a * acos64(x / a) + b * b * acos64((c - x) / b) - c * y;
+        (
+            Eclipse::Partial,
+            1.0 - area / (core::f64::consts::PI * a * a),
+        )
+    };
+    Ok(Illumination {
+        eclipse,
+        fraction,
+        sun_angular_radius: a,
+        body_angular_radius: b,
+        separation: c,
+    })
+}
+
+/// [`conical_illumination`] with the Earth (equatorial radius
+/// [`EARTH_EQUATORIAL_RADIUS_KM`]) at the origin: `sat` and `sun` are
+/// geocentric, in kilometres.
+pub fn earth_illumination(sat: [f64; 3], sun: [f64; 3]) -> Result<Illumination, EclipseError> {
+    conical_illumination(sat, sun, [0.0; 3], EARTH_EQUATORIAL_RADIUS_KM)
+}
+
+// ── Cylinder approximation (deprecated) ────────────────────────────────
+
+/// 日食/影の種別 (cylinder approximation, see [`shadow_state`]).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ShadowState {
     /// 完全に太陽光が当たっている。
     Sunlit,
-    /// 本影（完全な影）に入っている。
+    /// 本影 (cylinder approximation)。
     Umbra,
-    /// 半影（部分的な影）に入っている。
+    /// 半影 (fixed-factor approximation)。
     Penumbra,
 }
 
-/// 衛星の位置と太陽方向から影の状態を判定する。
+/// Shadow by a cylinder approximation, **not a cone**: the umbra is the
+/// cylinder of radius `body_radius` behind the body along `sun_dir`, at any
+/// distance, and the penumbra a cylinder wider by the fixed factor
+/// `1 + R_sun / 1 au`. It ignores that the umbra narrows and the penumbra
+/// widens with distance, and has no annular case.
 ///
-/// 円筒影モデル: 遮蔽天体（地球）の影を円錐として近似する。
-///
-/// # Arguments
-///
-/// - `sat_pos`: 衛星位置 (x, y, z) \[km\] — 地球中心座標系
-/// - `sun_dir`: 太陽方向の単位ベクトル (x, y, z) — 地球から太陽への方向
-/// - `body_radius`: 遮蔽天体の半径 \[km\]
+/// - `sat_pos`: satellite position (km), centred on the body
+/// - `sun_dir`: unit vector from the body towards the Sun
+/// - `body_radius`: radius of the occulting body (km)
+#[deprecated(note = "cylinder approximation; use conical_illumination (removed in the next minor)")]
 #[must_use]
 pub fn shadow_state(
     sat_pos: (f64, f64, f64),
     sun_dir: (f64, f64, f64),
     body_radius: f64,
 ) -> ShadowState {
-    // 衛星位置の太陽方向成分
-    let dot = (sat_pos.0).mul_add(
-        sun_dir.0,
-        (sat_pos.1).mul_add(sun_dir.1, sat_pos.2 * sun_dir.2),
-    );
-
-    // 太陽の反対側にいない場合は日照
+    let dot = sat_pos.0 * sun_dir.0 + sat_pos.1 * sun_dir.1 + sat_pos.2 * sun_dir.2;
+    // on the Sun's side of the body: sunlit
     if dot >= 0.0 {
         return ShadowState::Sunlit;
     }
-
-    // 遮蔽天体軸からの距離（太陽方向に対する垂直成分）
-    let perp_x = (-dot).mul_add(sun_dir.0, sat_pos.0);
-    let perp_y = (-dot).mul_add(sun_dir.1, sat_pos.1);
-    let perp_z = (-dot).mul_add(sun_dir.2, sat_pos.2);
-    let perp_dist_sq = perp_x.mul_add(perp_x, perp_y.mul_add(perp_y, perp_z * perp_z));
-
-    // 本影半径（円錐モデル）
+    // distance from the axis through the body along the Sun direction
+    let perp_x = sat_pos.0 - dot * sun_dir.0;
+    let perp_y = sat_pos.1 - dot * sun_dir.1;
+    let perp_z = sat_pos.2 - dot * sun_dir.2;
+    let perp_dist_sq = perp_x * perp_x + perp_y * perp_y + perp_z * perp_z;
     let umbra_radius = body_radius;
-    // 半影半径（太陽の見かけの大きさを考慮）
-    let penumbra_factor = 1.0 + SUN_RADIUS_KM / EARTH_SUN_DISTANCE_KM;
-    let penumbra_radius = body_radius * penumbra_factor;
-
+    let penumbra_radius = body_radius * (1.0 + SUN_RADIUS_KM / EARTH_SUN_DISTANCE_KM);
     if perp_dist_sq < umbra_radius * umbra_radius {
         ShadowState::Umbra
     } else if perp_dist_sq < penumbra_radius * penumbra_radius {
@@ -75,38 +220,37 @@ pub fn shadow_state(
     }
 }
 
-/// 地球影モデルのショートカット（`body_radius` = 地球半径）。
+/// [`shadow_state`] for the Earth (mean radius 6371 km), the same cylinder
+/// approximation, **not a cone**.
+#[deprecated(note = "cylinder approximation; use earth_illumination (removed in the next minor)")]
+#[allow(deprecated)]
 #[must_use]
 pub fn earth_shadow(sat_pos: (f64, f64, f64), sun_dir: (f64, f64, f64)) -> ShadowState {
     shadow_state(sat_pos, sun_dir, EARTH_RADIUS_KM)
 }
 
-/// LEO 衛星の1軌道あたりの日食割合を推定する。
+/// Fraction of a circular orbit inside a cylindrical Earth shadow (mean
+/// radius 6371 km), worst case of the Sun in the orbit plane:
+/// `asin(R/r)/π`. A cylinder approximation, **not a cone**, without
+/// penumbra.
 ///
-/// 円軌道を仮定し、軌道面が太陽方向に対して垂直な最悪ケースを計算する。
+/// - `altitude_km`: orbit altitude (km)
 ///
-/// # Arguments
-///
-/// - `altitude_km`: 軌道高度 \[km\]
-///
-/// # Returns
-///
-/// 日食割合（0.0〜1.0）。0.0 = 常に日照、1.0 = 常に影（実際には起こらない）。
+/// Returns 0.0 (always sunlit) to 1.0.
+#[deprecated(
+    note = "cylinder approximation; sample conical_illumination along the orbit (removed in the next minor)"
+)]
 #[must_use]
 pub fn eclipse_fraction(altitude_km: f64) -> f64 {
     let r = EARTH_RADIUS_KM + altitude_km;
     if r <= EARTH_RADIUS_KM {
         return 1.0;
     }
-    // 最悪ケース: 軌道面が太陽方向に垂直
-    // 影角度 = 2 * arcsin(R_earth / r)
-    // 日食割合 = 影角度 / (2π)
     let sin_half = EARTH_RADIUS_KM / r;
     if sin_half >= 1.0 {
         return 1.0;
     }
-    let half_angle = sin_half.asin();
-    half_angle / core::f64::consts::PI
+    asin64(sin_half) / core::f64::consts::PI
 }
 
 /// 通信ウィンドウの判定: 衛星が日照中かどうか。
@@ -121,6 +265,7 @@ pub const fn is_comm_window(state: ShadowState) -> bool {
 // ── Tests ──────────────────────────────────────────────────────────────
 
 #[cfg(test)]
+#[allow(deprecated)]
 mod tests {
     use super::*;
 

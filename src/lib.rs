@@ -103,6 +103,11 @@ pub use autonomy::{
 };
 pub use comm::{can_transmit, CommLink, ModelDifferential};
 pub use constellation::{WalkerConstellation, WalkerSatellite};
+pub use eclipse::{
+    conical_illumination, earth_illumination, Eclipse, EclipseError, Illumination,
+    EARTH_EQUATORIAL_RADIUS_KM, MOON_RADIUS_KM, SUN_RADIUS_KM,
+};
+#[allow(deprecated)]
 pub use eclipse::{earth_shadow, eclipse_fraction, is_comm_window, shadow_state, ShadowState};
 pub use link_budget::{friis_path_loss_db, LinkBudget, LinkBudgetResult};
 pub use mission::{MissionEvent, MissionFsm, MissionLog, MissionPhase, TransitionResult};

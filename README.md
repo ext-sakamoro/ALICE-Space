@@ -6,7 +6,7 @@ Deep-space communication, autonomous trajectory control, and model-differential 
 
 - Keplerian orbital mechanics: period, vis-viva velocity, Hohmann transfer delta-v, light delay
 - RK4 numerical orbit propagator with energy conservation verification
-- SGP4 / SDP4 propagation of TLE mean elements (Vallado 2006 revision, TEME output), matching Vallado's verification output for all 33 test sets; every transcendental goes through `alice-det-math`, so the result does not depend on the platform's math library (the bit-level golden is checked on x86_64 Linux and arm64 macOS)
+- SGP4 / SDP4 propagation of TLE mean elements (Vallado 2006 revision, TEME output), matching Vallado's verification output for all 33 test sets; every transcendental goes through `alice-det-math`, so the result does not depend on the platform's math library (the bit-level golden is checked on Linux, macOS, Windows and wasm32)
 - Two-body gravitational acceleration with reciprocal-optimized computation
 - Walker Delta Pattern constellation generator (GPS, Iridium, and arbitrary T/P/F configurations)
 - Friis free-space path loss and full link budget analysis (EIRP, C/N0, Eb/N0, margin)
@@ -17,7 +17,7 @@ Deep-space communication, autonomous trajectory control, and model-differential 
 - FNV-1a deterministic content hashing on all output types
 - CCSDS OMM (Orbit Mean-Elements Message) reader for SGP4 element sets in KVN, NDM XML, and CelesTrak's GP JSON / CSV, giving the same SGP4 input as the TLE of the same element set
 - CCSDS OEM / OPM (Orbit Ephemeris / Parameter Message, KVN) reader with the interpolation the message names, and Lagrange / Hermite interpolation shared with SP3 precise orbits (`Sp3File::interpolate`)
-- One dependency: `alice-det-math` (bit-identical `f64` transcendentals for the SGP4 module)
+- One dependency: `alice-det-math` (bit-identical `f64` transcendentals, used by the SGP4 and eclipse modules; only SGP4's output bits are pinned by a cross-platform golden, the other modules make no bit-identity claim yet)
 
 ## Module Overview
 
@@ -29,6 +29,7 @@ Deep-space communication, autonomous trajectory control, and model-differential 
 | `interp` | `lagrange`, `hermite`, `InterpError` | Lagrange and Hermite interpolation of tabulated trajectories (centred window, relative times) |
 | `omm` | `Omm`, `OmmError`, `parse_kvn`, `parse_xml`, `parse_json`, `parse_csv` | CCSDS 502.0-B-3 OMM element sets for SGP4 (KVN / XML / CelesTrak JSON and CSV) |
 | `sgp4` | `Sgp4`, `MeanElements`, `TemeState`, `GravityModel`, `OpsMode` | SGP4 / SDP4 analytical propagation of TLE mean elements (TEME km, km/s) |
+| `eclipse` | `conical_illumination`, `earth_illumination`, `Eclipse`, `Illumination` | Conical umbra / penumbra / annular eclipse of the Sun by a spherical body from positions, with the visible fraction of the disk |
 | `comm` | `CommLink`, `ModelDifferential` | Deep-space link latency, bandwidth windows, and compact parameter differentials |
 | `autonomy` | `TrajectoryModel`, `ControlDecision`, `DecisionNode`, `FaultType`, `AutonomyLevel` | Polynomial trajectory models, correction computation, and fault detection |
 | `constellation` | `WalkerConstellation`, `WalkerSatellite` | Walker Delta Pattern satellite constellation layout generator |

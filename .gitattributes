@@ -1,3 +1,4 @@
 # test data is compared byte for byte (SHA-256 of the published files): never
 # convert line endings on checkout
 tests/data/** -text
+tests/golden/** -text
