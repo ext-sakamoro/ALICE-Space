@@ -2,7 +2,9 @@
 //!
 //! 4th-order Runge-Kutta integration of r'' = a(r). The two-body functions use
 //! a = -μ r / |r|³; [`propagate_rk4_field`] takes any [`Acceleration`], such as
-//! the zonal field of [`crate::gravity::ZonalGravity`].
+//! the zonal field of [`crate::gravity::ZonalGravity`]. An [`Acceleration`]
+//! depends on the position alone: forces that depend on the velocity (drag)
+//! or on time (the Sun and the Moon) are not integrated here.
 //!
 //! Author: Moroya Sakamoto
 

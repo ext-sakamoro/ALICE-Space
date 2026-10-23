@@ -15,6 +15,8 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - src/**
+      - tests/law_ids.rs
       - src/sgp4.rs
       - src/tle.rs
       - tests/sgp4_vallado.rs
@@ -72,7 +74,8 @@ jobs:
           fi
           files="$(git diff --name-only "${base}" HEAD)"
           printf 'changed against %s:\n%s\n' "${base}" "${files}"
-          pattern='^(src/sgp4\.rs|src/tle\.rs|src/lib\.rs|tests/sgp4_vallado\.rs|tests/tle_assumed_decimal\.rs|tests/data/sgp4/|Cargo\.toml|rust-toolchain\.toml|\.gitattributes|\.github/workflows/sgp4-golden\.yml)'
+          # every Law's digest moves with any src/ file (tests/law_ids.rs), the SGP4 golden with its own
+          pattern='^(src/|tests/law_ids\.rs|src/sgp4\.rs|src/tle\.rs|src/lib\.rs|tests/sgp4_vallado\.rs|tests/tle_assumed_decimal\.rs|tests/data/sgp4/|Cargo\.toml|rust-toolchain\.toml|\.gitattributes|\.github/workflows/sgp4-golden\.yml)'
           if printf '%s\n' "${files}" | grep -Eq "${pattern}"; then
             echo "run=true" >> "${GITHUB_OUTPUT}"
           else
@@ -133,12 +136,15 @@ jobs:
             target_args=(--target "${{ matrix.target }}")
           fi
           log="$(mktemp)"
-          cargo test --release "${target_args[@]}" --test sgp4_vallado --test tle_assumed_decimal 2>&1 | tee "${log}"
-          # the walk's bit golden, the Vallado oracle and the decimal oracle must each
-          # have run and passed: a filter that matched nothing would report "0 passed"
+          cargo test --release "${target_args[@]}" --test sgp4_vallado --test tle_assumed_decimal --test law_ids 2>&1 | tee "${log}"
+          # the walk's bit golden, the Vallado oracle, the decimal oracle and the Laws'
+          # digests must each have run and passed: a filter that matched nothing would
+          # report "0 passed" (the Law digests are the outputs' bits, so they must agree on
+          # every target, NaN included)
           for name in the_walk_gives_the_same_bits_on_every_target \
                       every_state_matches_vallados_reference_output \
-                      assumed_decimal_fields_decode_to_the_correctly_rounded_double; do
+                      assumed_decimal_fields_decode_to_the_correctly_rounded_double \
+                      reference_grids_are_frozen reference_digests semantics_ids; do
             if ! grep -E "^test ${name} \.\.\. ok" "${log}" >/dev/null; then
               echo "::error::${name} did not run and pass"
               exit 1
@@ -147,7 +153,7 @@ jobs:
           passed=$(grep -E '^test result: ' "${log}" | awk '{s += $4} END {print s + 0}')
           failed=$(grep -E '^test result: ' "${log}" | awk '{s += $6} END {print s + 0}')
           echo "passed: ${passed}, failed: ${failed}"
-          if [ "${passed}" -lt 6 ] || [ "${failed}" -ne 0 ]; then
-            echo "::error::expected at least 6 passed and 0 failed"
+          if [ "${passed}" -lt 9 ] || [ "${failed}" -ne 0 ]; then
+            echo "::error::expected at least 9 passed and 0 failed"
             exit 1
           fi

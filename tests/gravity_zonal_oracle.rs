@@ -250,3 +250,54 @@ fn degenerate_fields_and_positions() {
     // at an infinite distance ρ = 0, the sum is 1 and μ/∞ = 0
     assert_eq!(earth.potential(&[f64::INFINITY, 0.0, 0.0]), 0.0);
 }
+
+/// The J2 regression of the node: over 30 orbits of a = 7000 km, e = 0.01,
+/// i = 50° in the J2 field, the right ascension of the ascending node
+/// (from h = r × v) drifts at the first-order secular rate
+/// Ω̇ = −(3/2) n J2 (R/p)² cos i (e.g. Vallado, 4th ed., eq. 9-41). First-order
+/// theory leaves out the short-periodic difference between osculating and
+/// mean elements (of order J2 (R/a)² ≈ 9 × 10⁻⁴ rad, 0.5 % of the 0.16 rad
+/// drift) and the O(J2) change of the mean motion: within 1 %.
+#[test]
+fn j2_regresses_the_node_at_the_secular_rate() {
+    let (mu, re, j2) = (398_600.441_5, 6_378.136_3, 1.082_63e-3);
+    let field = ZonalGravity {
+        mu,
+        radius: re,
+        zonals: &[j2],
+    };
+    let (a, e, inc) = (7_000.0, 0.01, 50f64.to_radians());
+    // perigee on the x axis, ascending node there too (Ω = 0, ω = 0)
+    let rp = a * (1.0 - e);
+    let vp = sqrt64(mu * (1.0 + e) / rp);
+    let (si, ci) = sin_cos64(inc);
+    let start = SpacecraftState {
+        position_km: [rp, 0.0, 0.0],
+        velocity_km_s: [0.0, vp * ci, vp * si],
+        timestamp_ns: 0,
+        fuel_kg: 0.0,
+    };
+    let n = sqrt64(mu / (a * a * a));
+    let period = 2.0 * core::f64::consts::PI / n;
+    let dt = 10.0;
+    let steps = (30.0 * period / dt) as usize;
+    let end = propagate_rk4_field(&start, &field, dt, steps)
+        .pop()
+        .unwrap();
+    let (r, v) = (end.position_km, end.velocity_km_s);
+    let h = [
+        r[1] * v[2] - r[2] * v[1],
+        r[2] * v[0] - r[0] * v[2],
+        r[0] * v[1] - r[1] * v[0],
+    ];
+    let node = alice_det_math::atan2_64(h[0], -h[1]);
+    let t = steps as f64 * dt;
+    let p = a * (1.0 - e * e);
+    let rate = -1.5 * n * j2 * (re / p) * (re / p) * ci;
+    let want = rate * t;
+    assert!(want < -0.15, "the drift is large enough to measure: {want}");
+    assert!(
+        ((node - want) / want).abs() <= 0.01,
+        "node {node} rad against the secular {want} rad"
+    );
+}
