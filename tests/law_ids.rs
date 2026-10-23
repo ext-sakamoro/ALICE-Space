@@ -46,7 +46,7 @@ const REFERENCE_ODM_INTERP_LAGRANGE: &str =
 const REFERENCE_ODM_INTERP_HERMITE: &str =
     "a784541638c556fbb44843db44e33cd71bc10465aeb0ff7ccaa2034421cdd9a2";
 const REFERENCE_ECLIPSE_CONICAL: &str =
-    "158eaaa73321e71885b2cc0f1d8a6915679e614747a586bd67af338a5a766fbd";
+    "79fb3bf85b47c6a1c2901395be9c8a7f5578aa8c9b5256fecac44ffc4903bc8b";
 
 fn hex(b: &[u8]) -> String {
     b.iter().map(|x| format!("{x:02x}")).collect()
@@ -422,4 +422,10 @@ fn semantics_ids() {
     ids.sort_unstable();
     ids.dedup();
     assert_eq!(ids.len(), law::ALL.len(), "two Laws share an identifier");
+    for old in law::PREVIOUS_ECLIPSE_CONICAL_IDS {
+        assert!(
+            !ids.contains(&old),
+            "a previous identifier is a current one"
+        );
+    }
 }

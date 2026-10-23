@@ -29,6 +29,9 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  # the wasmtime release the wasm32 golden runs under; the check step fails
+  # when the installed binary reports another version
+  WASMTIME_VERSION: "50.0.0"
 
 jobs:
   changes:
@@ -104,10 +107,20 @@ jobs:
       - name: Install wasmtime
         if: matrix.target != ''
         uses: bytecodealliance/actions/wasmtime/setup@v1
-      - name: Check that wasmtime runs
+        with:
+          version: ${{ env.WASMTIME_VERSION }}
+      - name: Check that the pinned wasmtime runs
         if: matrix.target != ''
         shell: bash
-        run: wasmtime --version
+        run: |
+          set -euo pipefail
+          got="$(wasmtime --version)"
+          echo "${got}"
+          # "wasmtime 50.0.0 (ebe5e8df1 2026-10-20)": the second field
+          if [ "$(echo "${got}" | awk '{print $2}')" != "${WASMTIME_VERSION}" ]; then
+            echo "::error::wasmtime reports '${got}', the pin is ${WASMTIME_VERSION}"
+            exit 1
+          fi
       - name: Run the golden and the oracle it pins
         shell: bash
         env:

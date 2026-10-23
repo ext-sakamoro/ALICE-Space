@@ -274,7 +274,7 @@ fi
 
 step "ci.yml / test: Test (lib, integration, doctests)"
 (
-  export CARGO_TERM_COLOR="always" MIN_PASSED="394"
+  export CARGO_TERM_COLOR="always" MIN_PASSED="395"
   # the default shell has no pipefail: without it cargo's exit status is lost in the pipe
   set -o pipefail
   log="$(mktemp)"

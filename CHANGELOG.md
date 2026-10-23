@@ -5,7 +5,7 @@ All notable changes to ALICE-Space will be documented in this file.
 ## [Unreleased]
 
 ### Added
-- `law`: `Law` と識別子 `SGP4_AFSPC_WGS72` / `ODM_INTERP_LAGRANGE` / `ODM_INTERP_HERMITE` / `ECLIPSE_CONICAL` (各 `*_ID: [u8; 32]`、`law::ALL`) 識別子は名前・定数・alice-det-math の `SEMANTICS_ID` (超越関数を使う Law)・固定した入力格子での出力の digest の SHA-256 で、意味が変わる時だけ動く 初出なので以前の値は無い
+- `law`: `Law` と識別子 `SGP4_AFSPC_WGS72` / `ODM_INTERP_LAGRANGE` / `ODM_INTERP_HERMITE` / `ECLIPSE_CONICAL` (各 `*_ID: [u8; 32]`、`law::ALL`) 識別子は名前・定数・alice-det-math の `SEMANTICS_ID` (超越関数を使う Law)・固定した入力格子での出力の digest の SHA-256 で、意味が変わる時だけ動く 初出なので以前の値は無い `ECLIPSE_CONICAL` は同じ未公開の版のうちに円錐影の割合の計算を直したので `0cb1e80a` → `7d91ae6c` と動き、旧値を `law::PREVIOUS_ECLIPSE_CONICAL_IDS` に記録した (再現はしない)
 - CI: `clippy.toml` の disallowed-methods (platform の `f64` 超越関数・`sqrt`・`powi` / `powf`・`mul_add`・`max` / `min` / `clamp`、壁時計、OS の乱数、thread) と `Clippy (determinism gate)` job (`cargo clippy --all-targets --all-features -D warnings`) が crate 全体を検査する
 - `eclipse`: `conical_illumination(sat, sun, body, body_radius)` と `earth_illumination(sat, sun)` が位置 (km) から太陽の見かけの円盤と遮蔽天体の円盤を比べ、`Eclipse::{None, Partial, Annular, Total}` と見える円盤の割合を返す (Montenbruck & Gill §3.4.2 の円錐影、金環を含む) 定数 `SUN_RADIUS_KM` (IAU 2015) / `EARTH_EQUATORIAL_RADIUS_KM` (WGS-84) / `MOON_RADIUS_KM`
 - `interp`: Lagrange (`lagrange`、位置と補間多項式の微分としての速度) と Hermite (`hermite`、位置と速度を節点で一致) 窓は時刻に中心を合わせた節点 (表の端では内側に寄せる、CCSDS 502.0 の次数の使い方) で、積は窓の最初の節点からの相対時刻で作る 試験 `tests/interp_oracle.rs`: 次数 n の Lagrange が n 次以下の多項式を値と微分で再現 (1 から 10 次)、k 節点の Hermite が 2k−1 次以下を再現、円軌道で中心を合わせた窓の誤差限界の内側、退化入力
@@ -31,6 +31,7 @@ All notable changes to ALICE-Space will be documented in this file.
 - `eclipse::shadow_state` / `eclipse::earth_shadow` / `eclipse::eclipse_fraction`: 円錐でなく円筒の近似 (本影は距離によらず天体半径の円筒、半影は固定係数で広げた円筒、金環なし) `conical_illumination` / `earth_illumination` に移る 次の minor で削除 2026-10-23 の時点で ALICE の他の repo (origin/main) に呼び出し元は無い 移行が要るのはこの crate の再 export (`lib.rs`) だけ 非推奨にした関数の `mul_add` と platform の `asin` は alice-det-math の算術に置き換えた
 
 ### Fixed
+- `eclipse::conical_illumination`: 半影の縁の近くで見える割合が最大 6e-6 ずれ、1 を超えることがあった (扇形から弦の三角形を引く式の桁落ち) 2 つの弓形をそれぞれ求め、見える部分を同じ側の弓形から作る
 - `ccsds_odm`: 秒 60 (`23:59:60`) を OEM の行・`START_TIME` / `STOP_TIME` / `USEABLE_*`・OPM の `EPOCH`・`OemSegment::state_at` の問い合わせのどこでも受け付けない UTC では非対応 (`Unsupported`)、TAI / TT / GPS など他の時刻系では存在しない秒として `Invalid` それまでは窓の時刻と問い合わせの 23:59:60 を翌日の 00:00:00 として読んでいた
 - `tle::parse`: BSTAR と平均運動の 2 階微分 (仮定小数の field、例 ` -22483-4`) を `仮数 × 10f64.powi(指数)` でなく小数の文字列 (`-0.22483e-4`) を 1 回 parse して作る `powi` の精度は規定されておらず、Vallado の検証 TLE と CelesTrak の 2 組の 70 field のうち 6 field が正しく丸めた値から 1 ulp ずれていた 試験 `tests/tle_assumed_decimal.rs` (70 field 全てが正しく丸めた値と bit 一致)
 
