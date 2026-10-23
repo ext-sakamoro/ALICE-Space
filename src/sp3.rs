@@ -118,6 +118,43 @@ pub struct Sp3File {
     pub epochs: Vec<Sp3Epoch>,
 }
 
+impl Sp3File {
+    /// The position (km) of satellite `prn` (e.g. `"G01"`) at `unix_seconds`,
+    /// by Lagrange interpolation of `degree` over the epochs that carry the
+    /// satellite ([`crate::interp::lagrange`], window centred on the time).
+    /// Records with an all-zero position (the SP3 mark of a missing value) are
+    /// left out.
+    ///
+    /// # Errors
+    ///
+    /// [`crate::interp::InterpError`] when the satellite has too few epochs for
+    /// the degree or the time is outside them.
+    pub fn interpolate(
+        &self,
+        prn: &str,
+        unix_seconds: f64,
+        degree: usize,
+    ) -> Result<[f64; 3], crate::interp::InterpError> {
+        let mut times = Vec::new();
+        let mut values = Vec::new();
+        let origin = self.epochs.first().map_or(0, |e| e.unix_seconds);
+        for e in &self.epochs {
+            if let Some(p) = e.positions.iter().find(|p| p.prn_str() == prn) {
+                if p.x_km == 0.0 && p.y_km == 0.0 && p.z_km == 0.0 {
+                    continue;
+                }
+                #[allow(clippy::cast_precision_loss)] // seconds within a file, far below 2^53
+                let t = (e.unix_seconds - origin) as f64;
+                times.extend([t]);
+                values.extend([[p.x_km, p.y_km, p.z_km]]);
+            }
+        }
+        #[allow(clippy::cast_precision_loss)]
+        let t = unix_seconds - origin as f64;
+        crate::interp::lagrange(&times, &values, degree, t).map(|(p, _)| p)
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Parser
 // ---------------------------------------------------------------------------

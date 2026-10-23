@@ -16,6 +16,7 @@ Deep-space communication, autonomous trajectory control, and model-differential 
 - Append-only mission event log with delta-v accounting and phase filtering
 - FNV-1a deterministic content hashing on all output types
 - CCSDS OMM (Orbit Mean-Elements Message) reader for SGP4 element sets in KVN, NDM XML, and CelesTrak's GP JSON / CSV, giving the same SGP4 input as the TLE of the same element set
+- CCSDS OEM / OPM (Orbit Ephemeris / Parameter Message, KVN) reader with the interpolation the message names, and Lagrange / Hermite interpolation shared with SP3 precise orbits (`Sp3File::interpolate`)
 - One dependency: `alice-det-math` (bit-identical `f64` transcendentals for the SGP4 module)
 
 ## Module Overview
@@ -24,6 +25,8 @@ Deep-space communication, autonomous trajectory control, and model-differential 
 |---|---|---|
 | `orbit` | `OrbitalElements`, `SpacecraftState`, `CelestialBody`, `BodyId` | Keplerian elements, state vectors, and orbital mechanics primitives |
 | `propagator` | `TwoBodyAccel`, `propagate_rk4`, `propagate_rk4_single` | 4th-order Runge-Kutta two-body orbit integration |
+| `ccsds_odm` | `Oem`, `OemSegment`, `Opm`, `OdmEpoch`, `parse_oem_kvn`, `parse_opm_kvn` | CCSDS 502.0-B-3 OEM / OPM in KVN, OEM segments interpolated as the message specifies |
+| `interp` | `lagrange`, `hermite`, `InterpError` | Lagrange and Hermite interpolation of tabulated trajectories (centred window, relative times) |
 | `omm` | `Omm`, `OmmError`, `parse_kvn`, `parse_xml`, `parse_json`, `parse_csv` | CCSDS 502.0-B-3 OMM element sets for SGP4 (KVN / XML / CelesTrak JSON and CSV) |
 | `sgp4` | `Sgp4`, `MeanElements`, `TemeState`, `GravityModel`, `OpsMode` | SGP4 / SDP4 analytical propagation of TLE mean elements (TEME km, km/s) |
 | `comm` | `CommLink`, `ModelDifferential` | Deep-space link latency, bandwidth windows, and compact parameter differentials |

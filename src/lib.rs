@@ -54,6 +54,7 @@
 //! Author: Moroya Sakamoto
 
 pub mod autonomy;
+pub mod ccsds_odm;
 pub mod comm;
 pub mod constellation;
 pub mod cycle_slip;
@@ -63,6 +64,7 @@ pub mod eclipse;
 pub mod ffi;
 pub mod geodetic;
 pub mod hopfield;
+pub mod interp;
 pub mod ionosphere;
 pub mod link_budget;
 pub mod mission;

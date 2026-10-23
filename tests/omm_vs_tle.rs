@@ -15,6 +15,9 @@
 //!
 //! Author: Moroya Sakamoto
 
+// the index pairs the same axis of two 3-vectors
+#![allow(clippy::needless_range_loop)]
+
 use alice_space::omm::{self, Omm};
 use alice_space::sgp4::{GravityModel, MeanElements, OpsMode, Sgp4};
 use alice_space::tle;
