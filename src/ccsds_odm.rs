@@ -7,8 +7,11 @@
 //! `INTERPOLATION_DEGREE`); [`OemSegment::state_at`] interpolates the table with
 //! [`crate::interp`]. Covariance blocks are skipped. Epochs are held as whole
 //! days and seconds of the day ([`OdmEpoch`]), so times relative to a segment
-//! keep full precision whatever the epoch. A leap second (`23:59:60`) in a UTC
-//! segment is rejected: uniform seconds across it need the time-scale tables.
+//! keep full precision whatever the epoch. Second 60 (`23:59:60`) is rejected
+//! wherever an epoch occurs (rows, window times, the OPM epoch, the epoch asked
+//! of [`OemSegment::state_at`]): in UTC as unsupported, since uniform seconds
+//! across a leap second need the time-scale tables, and in any other time
+//! system as invalid, since it has no such second.
 //!
 //! Author: Moroya Sakamoto
 
@@ -205,14 +208,17 @@ impl OemSegment {
     ///
     /// # Errors
     ///
-    /// [`OdmError::OutsideUseableWindow`] outside the useable window, and
-    /// [`OdmError::Interp`] when the table is too short for the degree.
+    /// [`OdmError::OutsideUseableWindow`] outside the useable window,
+    /// [`OdmError::Interp`] when the table is too short for the degree, and
+    /// for second 60 [`OdmError::Unsupported`] (UTC) or [`OdmError::Invalid`]
+    /// (other time systems).
     pub fn state_at_with(
         &self,
         epoch: &OdmEpoch,
         method: Interpolation,
         degree: usize,
     ) -> Result<State, OdmError> {
+        reject_second_60(epoch, &self.time_system, "query epoch", "second 60")?;
         let origin = self.epochs[0];
         let t = epoch.seconds_since(&origin);
         let lo = self.useable_start_time.seconds_since(&origin);
@@ -275,6 +281,24 @@ fn epoch_of(map: &BTreeMap<String, String>, key: &'static str) -> Result<OdmEpoc
     OdmEpoch::parse(v).ok_or_else(|| OdmError::Invalid(key.to_owned(), v.clone()))
 }
 
+/// Second 60 in `time_system`: a UTC leap second is unsupported (uniform
+/// seconds across it need the time-scale tables), and in any other time
+/// system the second does not exist.
+fn reject_second_60(
+    e: &OdmEpoch,
+    time_system: &str,
+    key: &str,
+    text: &str,
+) -> Result<(), OdmError> {
+    if !e.is_leap_second() {
+        Ok(())
+    } else if time_system.eq_ignore_ascii_case("UTC") {
+        Err(OdmError::Unsupported(key.to_owned(), text.to_owned()))
+    } else {
+        Err(OdmError::Invalid(key.to_owned(), text.to_owned()))
+    }
+}
+
 fn text_of(map: &BTreeMap<String, String>, key: &'static str) -> Result<String, OdmError> {
     map.get(key).cloned().ok_or(OdmError::Missing(key))
 }
@@ -327,6 +351,17 @@ fn segment_from(
         stop_time
     };
 
+    for (key, e) in [
+        ("START_TIME", &start_time),
+        ("STOP_TIME", &stop_time),
+        ("USEABLE_START_TIME", &useable_start_time),
+        ("USEABLE_STOP_TIME", &useable_stop_time),
+    ] {
+        if let Some(v) = meta.get(key) {
+            reject_second_60(e, &time_system, key, v)?;
+        }
+    }
+
     let mut epochs = Vec::new();
     let mut positions_km = Vec::new();
     let mut velocities_km_s = Vec::new();
@@ -340,12 +375,7 @@ fn segment_from(
         }
         let e = OdmEpoch::parse(cols[0])
             .ok_or_else(|| OdmError::Invalid("EPOCH".to_owned(), cols[0].to_owned()))?;
-        if e.is_leap_second() && time_system.eq_ignore_ascii_case("UTC") {
-            return Err(OdmError::Unsupported(
-                "EPOCH".to_owned(),
-                cols[0].to_owned(),
-            ));
-        }
+        reject_second_60(&e, &time_system, "EPOCH", cols[0])?;
         if let Some(prev) = epochs.last() {
             if e.seconds_since(prev) <= 0.0 {
                 return Err(OdmError::Syntax("epochs are not increasing".to_owned(), n));
@@ -398,8 +428,8 @@ fn segment_from(
 /// # Errors
 ///
 /// [`OdmError`] for a missing version or metadata key, a malformed row or value,
-/// rows outside the segment, an unsupported interpolation, or a UTC leap
-/// second.
+/// rows outside the segment, an unsupported interpolation, or second 60
+/// (unsupported in UTC, invalid in other time systems).
 pub fn parse_oem_kvn(text: &str) -> Result<Oem, OdmError> {
     let lines = kvn_lines(text);
     let mut version = None;
@@ -551,12 +581,7 @@ pub fn parse_opm_kvn(text: &str) -> Result<Opm, OdmError> {
     };
     let epoch = epoch_of(&map, "EPOCH")?;
     let time_system = text_of(&map, "TIME_SYSTEM")?;
-    if epoch.is_leap_second() && time_system.eq_ignore_ascii_case("UTC") {
-        return Err(OdmError::Unsupported(
-            "EPOCH".to_owned(),
-            text_of(&map, "EPOCH")?,
-        ));
-    }
+    reject_second_60(&epoch, &time_system, "EPOCH", &text_of(&map, "EPOCH")?)?;
     Ok(Opm {
         version: text_of(&map, "CCSDS_OPM_VERS")?,
         object_name: text_of(&map, "OBJECT_NAME")?,

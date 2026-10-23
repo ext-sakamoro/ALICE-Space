@@ -255,3 +255,47 @@ fn degenerate_tables_are_errors() {
         );
     }
 }
+
+/// A centred window is symmetric: on a table symmetric about 0 of the odd
+/// function t⁵, the interpolant at −t is minus the interpolant at t, for every
+/// node count, odd and even (Lagrange degree 1 to 8, Hermite 1 to 5 nodes).
+/// A window biased to one side picks different nodes for t and −t and breaks
+/// the symmetry wherever the polynomial is not exact. Query points avoid the
+/// midpoints between nodes, where the nearest node is a tie.
+#[test]
+fn the_window_is_centred_for_odd_and_even_node_counts() {
+    let times: Vec<f64> = (-12..=12).map(f64::from).collect();
+    let f = |t: f64| t * t * t * t * t;
+    let df = |t: f64| 5.0 * t * t * t * t;
+    let values: Vec<[f64; 3]> = times.iter().map(|&t| [f(t), 0.0, 0.0]).collect();
+    let velocities: Vec<[f64; 3]> = times.iter().map(|&t| [df(t), 0.0, 0.0]).collect();
+    let mut compared = 0;
+    for k in 0..60 {
+        // offsets of 0.1 .. 0.4 and 0.6 .. 0.9 from a node, never 0.5
+        let frac = [0.1, 0.2, 0.3, 0.4, 0.6, 0.7, 0.8, 0.9][k % 8];
+        let t = f64::from((k / 8) as u8) + frac;
+        for degree in 1..=8 {
+            let (p, _) = interp::lagrange(&times, &values, degree, t).unwrap();
+            let (m, _) = interp::lagrange(&times, &values, degree, -t).unwrap();
+            assert!(
+                (p[0] + m[0]).abs() <= 1e-9 * alice_det_math::max64(p[0].abs(), 1.0),
+                "lagrange degree {degree} t={t}: {} vs {}",
+                p[0],
+                m[0]
+            );
+            compared += 1;
+        }
+        for degree in [1, 3, 5, 7, 9] {
+            let (p, _) = interp::hermite(&times, &values, &velocities, degree, t).unwrap();
+            let (m, _) = interp::hermite(&times, &values, &velocities, degree, -t).unwrap();
+            assert!(
+                (p[0] + m[0]).abs() <= 1e-9 * alice_det_math::max64(p[0].abs(), 1.0),
+                "hermite degree {degree} t={t}: {} vs {}",
+                p[0],
+                m[0]
+            );
+            compared += 1;
+        }
+    }
+    assert_eq!(compared, 60 * 13);
+}

@@ -22,6 +22,8 @@ on:
       - tests/data/sgp4/**
       - Cargo.toml
       - rust-toolchain.toml
+      - src/lib.rs
+      - .gitattributes
       - .github/workflows/sgp4-golden.yml
   workflow_dispatch:
 
@@ -53,14 +55,20 @@ jobs:
           fi
           # main: the commits of this push; a ci/ branch: everything it changes
           # against main (a new branch has no usable "before")
-          if [ "${REF}" = refs/heads/main ] && git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
+          if [ "${REF}" = refs/heads/main ]; then
+            # an unreachable "before" (a new branch, a rewritten history) gives
+            # no diff to trust: run rather than skip
+            if ! git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
+              echo "run=true" >> "${GITHUB_OUTPUT}"
+              exit 0
+            fi
             base="${BEFORE}"
           else
             base="$(git merge-base origin/main HEAD)"
           fi
           files="$(git diff --name-only "${base}" HEAD)"
           printf 'changed against %s:\n%s\n' "${base}" "${files}"
-          pattern='^(src/sgp4\.rs|src/tle\.rs|tests/sgp4_vallado\.rs|tests/tle_assumed_decimal\.rs|tests/data/sgp4/|Cargo\.toml|rust-toolchain\.toml|\.github/workflows/sgp4-golden\.yml)'
+          pattern='^(src/sgp4\.rs|src/tle\.rs|src/lib\.rs|tests/sgp4_vallado\.rs|tests/tle_assumed_decimal\.rs|tests/data/sgp4/|Cargo\.toml|rust-toolchain\.toml|\.gitattributes|\.github/workflows/sgp4-golden\.yml)'
           if printf '%s\n' "${files}" | grep -Eq "${pattern}"; then
             echo "run=true" >> "${GITHUB_OUTPUT}"
           else

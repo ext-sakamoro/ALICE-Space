@@ -302,7 +302,8 @@ fn malformed_and_out_of_window_inputs_are_errors() {
         ccsds_odm::parse_oem_kvn(leap),
         Err(OdmError::Unsupported(..))
     ));
-    // the same second 60 is accepted in TAI (no leap seconds there): parse only
+    // OdmEpoch::parse reads second 60 as a label only; whether it exists is
+    // decided by the time system (tests/ccsds_odm_leap_second.rs)
     assert!(OdmEpoch::parse("2016-12-31T23:59:60").is_some());
     assert!(
         OdmEpoch::parse("2016-12-31T23:58:60").is_none(),

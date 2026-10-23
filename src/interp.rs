@@ -4,9 +4,10 @@
 //!
 //! Both work on a window of samples around the requested time: `degree + 1`
 //! samples for Lagrange, `(degree + 1) / 2` samples (rounded up) for Hermite, each
-//! carrying a position and a velocity. The window is the one whose nodes are
-//! centred on the time as closely as the table allows (it slides inward at the
-//! ends of the table), which is how CCSDS 502.0 describes the use of the degree.
+//! carrying a position and a velocity. The window is centred on the time: an
+//! even number of nodes splits evenly around it, an odd number is centred on
+//! the nearest node; it slides inward at the ends of the table. This is how
+//! CCSDS 502.0 describes the use of the degree.
 //! Times are taken relative to the window's first node before any product is
 //! formed, so a table far from the origin of its time scale keeps its precision.
 //!
@@ -56,10 +57,16 @@ fn check_times(times: &[f64]) -> Result<(), InterpError> {
     Ok(())
 }
 
-/// The first index of the `count` nodes centred on `t` within `times`.
+/// The first index of the `count` nodes centred on `t` within `times`: an
+/// even count takes as many nodes on each side of `t`, an odd count is
+/// centred on the node nearest to `t` (the earlier one on a tie). The window
+/// slides inward at the ends of the table.
 fn window_start(times: &[f64], t: f64, count: usize) -> usize {
     // index of the last node at or before t
-    let k = times.partition_point(|&x| x <= t).saturating_sub(1);
+    let mut k = times.partition_point(|&x| x <= t).saturating_sub(1);
+    if count % 2 == 1 && k + 1 < times.len() && times[k + 1] - t < t - times[k] {
+        k += 1;
+    }
     let half = (count - 1) / 2;
     k.saturating_sub(half).min(times.len() - count)
 }

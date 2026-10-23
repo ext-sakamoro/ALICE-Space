@@ -1,0 +1,4 @@
+# Surviving cargo-mutants mutants that are equivalent or near-equivalent at the
+# public API, one per line: "<file>: <mutation> | <reason>". A survivor not
+# listed here is a gap.
+src/sgp4.rs: replace < with <= in mod_floor_twopi | near-equivalent: differs only when x is an exact f64 multiple of TWOPI (r = ±0), then returns TWOPI instead of 0, the same angle; downstream sin64/cos64 of TWOPI and of 0 differ by at most 2.5e-16, below the 1e-7 km agreement with the reference and not reached by the Vallado walk (the bit golden is unchanged)
