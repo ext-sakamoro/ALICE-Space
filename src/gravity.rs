@@ -85,3 +85,32 @@ impl ZonalGravity<'_> {
         self.mu / rn * sum
     }
 }
+
+/// The perturbing acceleration (km/s²) of a third body of gravitational
+/// parameter `mu` (km³/s²) at position `s` (km) on a satellite at `r` (km),
+/// both from the central body's centre:
+/// a = −μ ((r − s)/|r − s|³ + s/|s|³).
+///
+/// The two terms nearly cancel when |r| ≪ |s|; Battin's form avoids the
+/// cancellation: with q = r·(r − 2s)/|s|², |r − s|² = |s|²(1 + q) and
+/// (1 + q)^{3/2} − 1 = f(q) = q (3 + 3q + q²) / (1 + (1 + q)^{3/2}), so
+/// a = −μ/|r − s|³ (r + f(q) s). NaN when the body is at the centre or at the
+/// satellite.
+#[must_use]
+pub fn third_body(r: [f64; 3], s: [f64; 3], mu: f64) -> [f64; 3] {
+    let ss = s[0] * s[0] + s[1] * s[1] + s[2] * s[2];
+    let r2s = [r[0] - 2.0 * s[0], r[1] - 2.0 * s[1], r[2] - 2.0 * s[2]];
+    let q = (r[0] * r2s[0] + r[1] * r2s[1] + r[2] * r2s[2]) / ss;
+    let opq = 1.0 + q;
+    // the body at the satellite gives r + f(−1) s = 0 against k = −∞, and the
+    // body at the centre q = ∞ and d2 = 0·∞: both NaN without a branch
+    let d2 = ss * opq;
+    let opq32 = opq * sqrt64(opq);
+    let f = q * (3.0 + q * (3.0 + q)) / (1.0 + opq32);
+    let k = -mu / (d2 * sqrt64(d2));
+    [
+        k * (r[0] + f * s[0]),
+        k * (r[1] + f * s[1]),
+        k * (r[2] + f * s[2]),
+    ]
+}

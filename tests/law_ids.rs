@@ -16,7 +16,7 @@
 use alice_space::eclipse::{
     conical_illumination, Eclipse, EARTH_EQUATORIAL_RADIUS_KM, MOON_RADIUS_KM, SUN_RADIUS_KM,
 };
-use alice_space::gravity::ZonalGravity;
+use alice_space::gravity::{third_body, ZonalGravity};
 use alice_space::interp;
 use alice_space::law::{self, Law};
 use alice_space::sgp4::{GravityModel, MeanElements, OpsMode, Sgp4};
@@ -34,6 +34,10 @@ const REFERENCE_INTERP_INPUTS: (&str, usize) = (
     "c961a51b59284a2dd0b246c71155a9467fdc7fe62654b55f76628180dd50bf40",
     65,
 );
+const REFERENCE_THIRD_INPUTS: (&str, usize) = (
+    "a0de1e1d27ad2de07ade34495fd9e480a0346d7939b11fb36ef49afb80a7c57c",
+    98,
+);
 const REFERENCE_ZONAL_INPUTS: (&str, usize) = (
     "be322080b9a1056ade3b4d56c494049f661d6b157b5c4c43195d5f3692e37e34",
     121,
@@ -50,6 +54,8 @@ const REFERENCE_ODM_INTERP_LAGRANGE: &str =
     "f39757dfd592d4cf3432e82a504ec2a0fa9b984630bb0e78af3877e93bf2ae09";
 const REFERENCE_ODM_INTERP_HERMITE: &str =
     "a784541638c556fbb44843db44e33cd71bc10465aeb0ff7ccaa2034421cdd9a2";
+const REFERENCE_THIRD_BODY: &str =
+    "ba8a14c951f28c516b40981a4f456494924c302542e7b1a76683b059acca8041";
 const REFERENCE_ZONAL_GRAVITY: &str =
     "eca9b9a0460ae56e5032586e19bfd245382c0cbc1305c444f95013dcb0b8ff0b";
 const REFERENCE_ECLIPSE_CONICAL: &str =
@@ -335,6 +341,64 @@ fn zonal_outputs(cases: &[ZonalCase]) -> Vec<u8> {
     out
 }
 
+// ---- third body ------------------------------------------------------------
+
+/// Satellites with whole-kilometre coordinates from LEO to 300,000 km against
+/// a Sun-like body at 1 au and a Moon-like body at 384,400 km in spread
+/// directions, and the two singular configurations.
+type ThirdCase = ([f64; 3], [f64; 3], f64);
+
+fn third_cases() -> Vec<ThirdCase> {
+    let mut v = Vec::new();
+    for k in 0..96i32 {
+        let scale = [6_578, 7_000, 26_560, 42_164, 100_000, 300_000][(k % 6) as usize];
+        let (a, b, c) = (k % 5 - 2, (k * 3) % 7 - 3, (k * 7) % 9 - 4);
+        let d = match a.abs() + b.abs() + c.abs() {
+            0 => 1,
+            n => n,
+        };
+        let r = [
+            f64::from(scale * a / d),
+            f64::from(scale * b / d),
+            f64::from(scale * c / d + if a == 0 && b == 0 { scale } else { 0 }),
+        ];
+        let (s, mu) = if k % 2 == 0 {
+            (
+                [149_597_870.0, f64::from(k) * 1.0e6, -3.0e6],
+                1.327_124_400_412_794e11,
+            )
+        } else {
+            (
+                [-300_000.0, 240_000.0 - f64::from(k) * 1_000.0, 30_000.0],
+                4_902.800_118,
+            )
+        };
+        v.push((r, s, mu));
+    }
+    let moon = [384_400.0, 0.0, 0.0];
+    v.push((moon, moon, 4_902.800_118));
+    v.push(([7_000.0, 0.0, 0.0], [0.0; 3], 4_902.800_118));
+    v
+}
+
+fn third_input_bytes(cases: &[ThirdCase]) -> Vec<u8> {
+    let mut out = Vec::new();
+    for (r, s, mu) in cases {
+        bits(&mut out, r);
+        bits(&mut out, s);
+        bits(&mut out, &[*mu]);
+    }
+    out
+}
+
+fn third_outputs(cases: &[ThirdCase]) -> Vec<u8> {
+    let mut out = Vec::new();
+    for &(r, s, mu) in cases {
+        bits(&mut out, &third_body(r, s, mu));
+    }
+    out
+}
+
 // ---- identifiers -----------------------------------------------------------
 
 fn law_id(law: &Law, data: &[u8], grid: (&str, usize), reference: &str) -> [u8; 32] {
@@ -356,7 +420,14 @@ fn reference_grids_are_frozen() {
     let (_, _, _, queries) = interp_table();
     let cases = eclipse_cases();
     let zonal = zonal_cases();
+    let third = third_cases();
     let got = [
+        (
+            "THIRD_INPUTS",
+            digest(&third_input_bytes(&third)),
+            third.len(),
+            REFERENCE_THIRD_INPUTS,
+        ),
         (
             "ZONAL_INPUTS",
             digest(&zonal_input_bytes(&zonal)),
@@ -428,6 +499,11 @@ fn reference_digests() {
             zonal_outputs(&zonal_cases()),
             REFERENCE_ZONAL_GRAVITY,
         ),
+        (
+            "THIRD_BODY",
+            third_outputs(&third_cases()),
+            REFERENCE_THIRD_BODY,
+        ),
     ];
     let mut bad = Vec::new();
     for (name, bytes, want) in &got {
@@ -468,6 +544,8 @@ fn semantics_ids() {
     let mut zonal =
         b"Bonnet recursion; terms summed from J2 up; a = -(mu/r^2)(radial r^ + axial z^)".to_vec();
     zonal.extend(alice_det_math::SEMANTICS_ID);
+    let mut third = b"Battin: q = r.(r - 2s)/|s|^2, f(q) = q(3 + 3q + q^2)/(1 + (1+q)^(3/2)), a = -mu (r + f s)/|r - s|^3".to_vec();
+    third.extend(alice_det_math::SEMANTICS_ID);
     let cases = [
         (
             law::SGP4_AFSPC_WGS72,
@@ -498,6 +576,12 @@ fn semantics_ids() {
             zonal,
             REFERENCE_ZONAL_INPUTS,
             REFERENCE_ZONAL_GRAVITY,
+        ),
+        (
+            law::THIRD_BODY,
+            third,
+            REFERENCE_THIRD_INPUTS,
+            REFERENCE_THIRD_BODY,
         ),
     ];
     let mut bad = Vec::new();

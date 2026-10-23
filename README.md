@@ -25,12 +25,12 @@ Deep-space communication, autonomous trajectory control, and model-differential 
 |---|---|---|
 | `orbit` | `OrbitalElements`, `SpacecraftState`, `CelestialBody`, `BodyId` | Keplerian elements, state vectors, and orbital mechanics primitives |
 | `propagator` | `TwoBodyAccel`, `Acceleration`, `propagate_rk4`, `propagate_rk4_field`, `propagate_rk4_single` | 4th-order Runge-Kutta orbit integration in the two-body field or any `Acceleration` |
-| `gravity` | `ZonalGravity` | Zonal (axisymmetric) gravity field: acceleration and potential from μ, the reference radius and J2, J3, … (Legendre recursion) |
+| `gravity` | `ZonalGravity`, `third_body` | Zonal (axisymmetric) gravity field: acceleration and potential from μ, the reference radius and J2, J3, … (Legendre recursion); the perturbation of a third body from positions (Battin's form, no cancellation when the body is far) |
 | `ccsds_odm` | `Oem`, `OemSegment`, `Opm`, `OdmEpoch`, `parse_oem_kvn`, `parse_opm_kvn` | CCSDS 502.0-B-3 OEM / OPM in KVN, OEM segments interpolated as the message specifies |
 | `interp` | `lagrange`, `hermite`, `InterpError` | Lagrange and Hermite interpolation of tabulated trajectories (centred window, relative times) |
 | `omm` | `Omm`, `OmmError`, `parse_kvn`, `parse_xml`, `parse_json`, `parse_csv` | CCSDS 502.0-B-3 OMM element sets for SGP4 (KVN / XML / CelesTrak JSON and CSV) |
 | `sgp4` | `Sgp4`, `MeanElements`, `TemeState`, `GravityModel`, `OpsMode` | SGP4 / SDP4 analytical propagation of TLE mean elements (TEME km, km/s) |
-| `law` | `Law`, `SGP4_AFSPC_WGS72`, `ODM_INTERP_LAGRANGE`, `ODM_INTERP_HERMITE`, `ECLIPSE_CONICAL`, `ZONAL_GRAVITY`, `ALL` | Semantics identifiers of the evaluation rules: a stored value carries the identifier of the rule that produced it |
+| `law` | `Law`, `SGP4_AFSPC_WGS72`, `ODM_INTERP_LAGRANGE`, `ODM_INTERP_HERMITE`, `ECLIPSE_CONICAL`, `ZONAL_GRAVITY`, `THIRD_BODY`, `ALL` | Semantics identifiers of the evaluation rules: a stored value carries the identifier of the rule that produced it |
 | `eclipse` | `conical_illumination`, `earth_illumination`, `Eclipse`, `Illumination` | Conical umbra / penumbra / annular eclipse of the Sun by a spherical body from positions, with the visible fraction of the disk |
 | `comm` | `CommLink`, `ModelDifferential` | Deep-space link latency, bandwidth windows, and compact parameter differentials |
 | `autonomy` | `TrajectoryModel`, `ControlDecision`, `DecisionNode`, `FaultType`, `AutonomyLevel` | Polynomial trajectory models, correction computation, and fault detection |

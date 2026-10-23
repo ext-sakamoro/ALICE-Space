@@ -81,11 +81,23 @@ pub const ZONAL_GRAVITY: Law = Law {
     semantics_id: ZONAL_GRAVITY_ID,
 };
 
+/// The third-body perturbation `gravity::third_body` (Battin's f(q)).
+pub const THIRD_BODY_ID: [u8; 32] = [
+    0x22, 0xdb, 0xa1, 0xcb, 0x06, 0xc0, 0xf8, 0xa7, 0x38, 0x00, 0x4d, 0x3f, 0xd8, 0x6d, 0x9a, 0x61,
+    0x81, 0x90, 0xd3, 0x05, 0x53, 0xa1, 0x06, 0xc1, 0x52, 0xcd, 0x48, 0xdc, 0x51, 0x99, 0xa8, 0xd1,
+];
+/// [`THIRD_BODY_ID`] with its name.
+pub const THIRD_BODY: Law = Law {
+    name: "alice-space/third-body-battin",
+    semantics_id: THIRD_BODY_ID,
+};
+
 /// Every Law of the crate.
-pub const ALL: [Law; 5] = [
+pub const ALL: [Law; 6] = [
     SGP4_AFSPC_WGS72,
     ODM_INTERP_LAGRANGE,
     ODM_INTERP_HERMITE,
     ECLIPSE_CONICAL,
     ZONAL_GRAVITY,
+    THIRD_BODY,
 ];

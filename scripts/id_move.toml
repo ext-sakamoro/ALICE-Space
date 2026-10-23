@@ -20,3 +20,6 @@ path = "alice_space::law::ECLIPSE_CONICAL_ID"
 
 [[id]]
 path = "alice_space::law::ZONAL_GRAVITY_ID"
+
+[[id]]
+path = "alice_space::law::THIRD_BODY_ID"
