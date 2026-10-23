@@ -14,7 +14,9 @@ keywords = ["space", "orbit", "gnss", "geodetic", "tle"]
 alice-det-math = { git = "https://github.com/ext-sakamoro/ALICE-DetMath", rev = "9252dd22b0aae3110687097836808572a5323947", version = "0.5.1", default-features = false }
 
 [dev-dependencies]
-proptest = "1.4"
+# without the default `fork` and `timeout` features (rusty-fork and wait-timeout do
+# not build for wasm32-wasip1, where the SGP4 golden runs); no test uses them
+proptest = { version = "1.4", default-features = false, features = ["std", "bit-set"] }
 sha2 = "0.10"
 
 [lib]
