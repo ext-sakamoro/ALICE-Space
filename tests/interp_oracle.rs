@@ -306,3 +306,15 @@ fn the_window_is_centred_for_odd_and_even_node_counts() {
     }
     assert_eq!(compared, 60 * 13);
 }
+
+/// On a tie (the time exactly halfway between two nodes) an odd window is
+/// centred on the earlier node. Quadratic Lagrange of t³ on nodes 0..10 at
+/// t = 4.5: the window {3, 4, 5} leaves the error (t−3)(t−4)(t−5) = −0.375,
+/// so 91.125 + 0.375 = 91.5; the later window {4, 5, 6} would give 90.75.
+#[test]
+fn an_odd_window_at_a_tie_takes_the_earlier_node() {
+    let times: Vec<f64> = (0..=10).map(f64::from).collect();
+    let values: Vec<[f64; 3]> = times.iter().map(|&t| [t * t * t, 0.0, 0.0]).collect();
+    let (p, _) = interp::lagrange(&times, &values, 2, 4.5).unwrap();
+    assert_eq!(p[0], 91.5);
+}

@@ -95,13 +95,19 @@ jobs:
             target: wasm32-wasip1
     steps:
       - uses: actions/checkout@v5
-      - name: Add the wasm target and wasmtime
+      - name: Add the wasm target
         if: matrix.target != ''
         shell: bash
-        run: |
-          rustup target add "${{ matrix.target }}"
-          curl -sSf https://wasmtime.dev/install.sh | bash
-          echo "${HOME}/.wasmtime/bin" >> "${GITHUB_PATH}"
+        run: rustup target add "${{ matrix.target }}"
+      # the install script read its version from an API call that can fail and
+      # still exit 0, leaving no wasmtime; the official action retries
+      - name: Install wasmtime
+        if: matrix.target != ''
+        uses: bytecodealliance/actions/wasmtime/setup@v1
+      - name: Check that wasmtime runs
+        if: matrix.target != ''
+        shell: bash
+        run: wasmtime --version
       - name: Run the golden and the oracle it pins
         shell: bash
         env:
