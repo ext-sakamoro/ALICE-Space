@@ -20,6 +20,7 @@ use alice_space::gravity::{third_body, ZonalGravity};
 use alice_space::interp;
 use alice_space::law::{self, Law};
 use alice_space::sgp4::{GravityModel, MeanElements, OpsMode, Sgp4};
+use alice_space::srp::{self, solar_radiation_pressure, Occulter};
 use alice_space::tle;
 use sha2::{Digest, Sha256};
 
@@ -37,6 +38,10 @@ const REFERENCE_INTERP_INPUTS: (&str, usize) = (
 const REFERENCE_THIRD_INPUTS: (&str, usize) = (
     "a0de1e1d27ad2de07ade34495fd9e480a0346d7939b11fb36ef49afb80a7c57c",
     98,
+);
+const REFERENCE_SRP_INPUTS: (&str, usize) = (
+    "6e4a193fffce69850f1e788ffe06f0ad67efba84b0047577fe50c98cd46efcba",
+    462,
 );
 const REFERENCE_ZONAL_INPUTS: (&str, usize) = (
     "be322080b9a1056ade3b4d56c494049f661d6b157b5c4c43195d5f3692e37e34",
@@ -56,6 +61,8 @@ const REFERENCE_ODM_INTERP_HERMITE: &str =
     "a784541638c556fbb44843db44e33cd71bc10465aeb0ff7ccaa2034421cdd9a2";
 const REFERENCE_THIRD_BODY: &str =
     "ba8a14c951f28c516b40981a4f456494924c302542e7b1a76683b059acca8041";
+const REFERENCE_SOLAR_RADIATION_PRESSURE: &str =
+    "37ee5039d3a8b685596de241667839e6ac188f8f6dfb8c6858aacb9b034ff248";
 const REFERENCE_ZONAL_GRAVITY: &str =
     "eca9b9a0460ae56e5032586e19bfd245382c0cbc1305c444f95013dcb0b8ff0b";
 const REFERENCE_ECLIPSE_CONICAL: &str =
@@ -399,6 +406,68 @@ fn third_outputs(cases: &[ThirdCase]) -> Vec<u8> {
     out
 }
 
+// ---- solar radiation pressure ----------------------------------------------
+
+/// The eclipse grid's satellites (behind the Earth and behind the Moon, across
+/// the shadow edges), each with the Earth and the Moon as occulting bodies,
+/// three reflectivity / area-to-mass pairs in turn, and the invalid inputs.
+type SrpCase = ([f64; 3], [f64; 3], [f64; 3], f64, f64);
+
+fn srp_cases() -> Vec<SrpCase> {
+    let pairs = [(1.0, 1.0), (1.3, 0.02), (1.8, 0.005)];
+    let mut v: Vec<SrpCase> = eclipse_cases()
+        .into_iter()
+        .enumerate()
+        .map(|(k, (sat, sun, _, _))| {
+            let (cr, am) = pairs[k % 3];
+            (sat, sun, [384_400.0, 0.0, 0.0], cr, am)
+        })
+        .collect();
+    let sun = [149_597_870.7, 0.0, 0.0];
+    v.extend([
+        ([7_000.0, 0.0, 0.0], sun, [384_400.0, 0.0, 0.0], -1.0, 1.0),
+        ([100.0, 0.0, 0.0], sun, [384_400.0, 0.0, 0.0], 1.0, 1.0),
+        (sun, sun, [384_400.0, 0.0, 0.0], 1.0, 1.0),
+    ]);
+    v
+}
+
+fn srp_input_bytes(cases: &[SrpCase]) -> Vec<u8> {
+    let mut out = Vec::new();
+    for (sat, sun, moon, cr, am) in cases {
+        bits(&mut out, sat);
+        bits(&mut out, sun);
+        bits(&mut out, moon);
+        bits(&mut out, &[*cr, *am]);
+    }
+    out
+}
+
+fn srp_outputs(cases: &[SrpCase]) -> Vec<u8> {
+    let mut out = Vec::new();
+    for &(sat, sun, moon, cr, am) in cases {
+        let occ = [
+            Occulter {
+                position: [0.0; 3],
+                radius: EARTH_EQUATORIAL_RADIUS_KM,
+            },
+            Occulter {
+                position: moon,
+                radius: MOON_RADIUS_KM,
+            },
+        ];
+        match solar_radiation_pressure(sat, sun, &occ, cr, am) {
+            Ok(a) => {
+                out.extend([0]);
+                bits(&mut out, &a);
+            }
+            Err(srp::SrpError::InvalidInput) => out.extend([1]),
+            Err(srp::SrpError::Eclipse(_)) => out.extend([2]),
+        }
+    }
+    out
+}
+
 // ---- identifiers -----------------------------------------------------------
 
 fn law_id(law: &Law, data: &[u8], grid: (&str, usize), reference: &str) -> [u8; 32] {
@@ -421,7 +490,14 @@ fn reference_grids_are_frozen() {
     let cases = eclipse_cases();
     let zonal = zonal_cases();
     let third = third_cases();
+    let srp_grid = srp_cases();
     let got = [
+        (
+            "SRP_INPUTS",
+            digest(&srp_input_bytes(&srp_grid)),
+            srp_grid.len(),
+            REFERENCE_SRP_INPUTS,
+        ),
         (
             "THIRD_INPUTS",
             digest(&third_input_bytes(&third)),
@@ -504,6 +580,11 @@ fn reference_digests() {
             third_outputs(&third_cases()),
             REFERENCE_THIRD_BODY,
         ),
+        (
+            "SOLAR_RADIATION_PRESSURE",
+            srp_outputs(&srp_cases()),
+            REFERENCE_SOLAR_RADIATION_PRESSURE,
+        ),
     ];
     let mut bad = Vec::new();
     for (name, bytes, want) in &got {
@@ -546,6 +627,18 @@ fn semantics_ids() {
     zonal.extend(alice_det_math::SEMANTICS_ID);
     let mut third = b"Battin: q = r.(r - 2s)/|s|^2, f(q) = q(3 + 3q + q^2)/(1 + (1+q)^(3/2)), a = -mu (r + f s)/|r - s|^3".to_vec();
     third.extend(alice_det_math::SEMANTICS_ID);
+    // the irradiance, c and the au, and the shadow Law it scales by
+    let mut srp_data = Vec::new();
+    bits(
+        &mut srp_data,
+        &[
+            srp::SOLAR_IRRADIANCE_W_M2,
+            srp::SPEED_OF_LIGHT_M_S,
+            srp::AU_KM,
+        ],
+    );
+    srp_data.extend(law::ECLIPSE_CONICAL_ID);
+    srp_data.extend(alice_det_math::SEMANTICS_ID);
     let cases = [
         (
             law::SGP4_AFSPC_WGS72,
@@ -582,6 +675,12 @@ fn semantics_ids() {
             third,
             REFERENCE_THIRD_INPUTS,
             REFERENCE_THIRD_BODY,
+        ),
+        (
+            law::SOLAR_RADIATION_PRESSURE,
+            srp_data,
+            REFERENCE_SRP_INPUTS,
+            REFERENCE_SOLAR_RADIATION_PRESSURE,
         ),
     ];
     let mut bad = Vec::new();

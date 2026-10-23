@@ -92,12 +92,25 @@ pub const THIRD_BODY: Law = Law {
     semantics_id: THIRD_BODY_ID,
 };
 
+/// Solar radiation pressure `srp::solar_radiation_pressure`: the cannonball
+/// model scaled by the conical shadow's visible fraction of the Sun.
+pub const SOLAR_RADIATION_PRESSURE_ID: [u8; 32] = [
+    0x21, 0xf5, 0x4f, 0x94, 0xed, 0xac, 0xe7, 0xd6, 0xc3, 0xfa, 0xa5, 0x5c, 0xd7, 0xeb, 0x46, 0x8b,
+    0xd0, 0x44, 0xd4, 0xdc, 0x31, 0xcf, 0x74, 0x07, 0x9e, 0x85, 0x7d, 0xe0, 0x40, 0x29, 0x48, 0x9b,
+];
+/// [`SOLAR_RADIATION_PRESSURE_ID`] with its name.
+pub const SOLAR_RADIATION_PRESSURE: Law = Law {
+    name: "alice-space/srp-cannonball-conical",
+    semantics_id: SOLAR_RADIATION_PRESSURE_ID,
+};
+
 /// Every Law of the crate.
-pub const ALL: [Law; 6] = [
+pub const ALL: [Law; 7] = [
     SGP4_AFSPC_WGS72,
     ODM_INTERP_LAGRANGE,
     ODM_INTERP_HERMITE,
     ECLIPSE_CONICAL,
     ZONAL_GRAVITY,
     THIRD_BODY,
+    SOLAR_RADIATION_PRESSURE,
 ];
