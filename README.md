@@ -25,6 +25,7 @@ Deep-space communication, autonomous trajectory control, and model-differential 
 |---|---|---|
 | `orbit` | `OrbitalElements`, `SpacecraftState`, `CelestialBody`, `BodyId` | Keplerian elements, state vectors, and orbital mechanics primitives |
 | `propagator` | `TwoBodyAccel`, `Acceleration`, `propagate_rk4`, `propagate_rk4_field`, `propagate_rk4_single` | 4th-order Runge-Kutta orbit integration in the two-body field or any `Acceleration` |
+| `forces` | `ForceModel`, `SrpParams`, `DragParams`, `ForceError` | Time-dependent forces on an Earth satellite in the GCRS: the zonal field and the drag in the celestial intermediate frame, the Sun and the Moon (alice-ephemeris) for their perturbations and the radiation pressure with conical shadows; RK4 propagation |
 | `gravity` | `ZonalGravity`, `third_body` | Zonal (axisymmetric) gravity field: acceleration and potential from μ, the reference radius and J2, J3, … (Legendre recursion); the perturbation of a third body from positions (Battin's form, no cancellation when the body is far) |
 | `ccsds_odm` | `Oem`, `OemSegment`, `Opm`, `OdmEpoch`, `parse_oem_kvn`, `parse_opm_kvn` | CCSDS 502.0-B-3 OEM / OPM in KVN, OEM segments interpolated as the message specifies |
 | `interp` | `lagrange`, `hermite`, `InterpError` | Lagrange and Hermite interpolation of tabulated trajectories (centred window, relative times) |
