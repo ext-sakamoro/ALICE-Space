@@ -1,5 +1,7 @@
 //! Autonomous spacecraft control — trajectory models and correction decisions.
 
+use alice_det_math::{max64, min64, sqrt64};
+
 use crate::comm::ModelDifferential;
 use crate::orbit::SpacecraftState;
 
@@ -150,8 +152,7 @@ pub fn compute_correction(
         predicted[1] - current.position_km[1],
         predicted[2] - current.position_km[2],
     ];
-    let error_magnitude =
-        (error[2].mul_add(error[2], error[0].mul_add(error[0], error[1] * error[1]))).sqrt();
+    let error_magnitude = sqrt64(error[2] * error[2] + (error[0] * error[0] + error[1] * error[1]));
 
     // Thrust proportional to error, normalized — precompute reciprocal to avoid 3 divisions
     let thrust = if error_magnitude > 1e-10 {
@@ -162,10 +163,10 @@ pub fn compute_correction(
     };
 
     // Confidence inversely proportional to error
-    let confidence = (1.0 / error_magnitude.mul_add(0.01, 1.0)).clamp(0.0, 1.0);
+    let confidence = min64(max64(1.0 / (error_magnitude * 0.01 + 1.0), 0.0), 1.0);
 
     // Burn duration proportional to error
-    let burn_duration = (error_magnitude * 0.001).min(300.0);
+    let burn_duration = min64(error_magnitude * 0.001, 300.0);
 
     ControlDecision {
         action_hash: 0,
@@ -435,12 +436,11 @@ mod tests {
         };
         let model = TrajectoryModel::new(vec![300.0, 400.0, 0.0], 0, 1_000_000_000);
         let d = compute_correction(&state, &model, 0);
-        let mag = d.thrust_vector[2]
-            .mul_add(
-                d.thrust_vector[2],
-                d.thrust_vector[1].mul_add(d.thrust_vector[1], d.thrust_vector[0].powi(2)),
-            )
-            .sqrt();
+        let mag = sqrt64(
+            d.thrust_vector[2] * d.thrust_vector[2]
+                + (d.thrust_vector[1] * d.thrust_vector[1]
+                    + d.thrust_vector[0] * d.thrust_vector[0]),
+        );
         assert!(
             (mag - 1.0).abs() < 1e-10,
             "Thrust should be unit vector, mag={mag}"
@@ -535,7 +535,7 @@ mod tests {
         let model = TrajectoryModel::new(vec![110.0, 120.0, 130.0], 0, 1_000_000_000);
         let d = compute_correction(&state, &model, 0);
         // エラーが(100, 100, 100)なので推力は(1,1,1)/sqrt(3)方向
-        let expected = 1.0 / 3.0_f64.sqrt();
+        let expected = 1.0 / sqrt64(3.0_f64);
         for i in 0..3 {
             assert!(
                 (d.thrust_vector[i] - expected).abs() < 1e-6,

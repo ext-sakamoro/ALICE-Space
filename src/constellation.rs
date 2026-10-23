@@ -6,6 +6,8 @@
 //!
 //! Author: Moroya Sakamoto
 
+use alice_det_math::{asin64, max64, sqrt64};
+
 use crate::fnv1a;
 use crate::orbit::OrbitalElements;
 use std::f64::consts::PI;
@@ -160,7 +162,7 @@ impl WalkerConstellation {
     #[must_use]
     pub fn ground_track_period_s(&self, mu: f64) -> f64 {
         let a = self.semi_major_axis_km;
-        2.0 * PI * (a * a * a / mu).sqrt()
+        2.0 * PI * sqrt64(a * a * a / mu)
     }
 
     /// Minimum elevation angle (deg) for single-coverage at equator
@@ -182,9 +184,9 @@ impl WalkerConstellation {
         // Half-cone angle for single coverage: approximate as
         // θ = asin(R_earth / (R_earth + h)) → minimum elevation = 90 - θ - half_spacing
         let sin_theta = r_earth / (r_earth + altitude);
-        let theta = sin_theta.asin();
+        let theta = asin64(sin_theta);
         let half_spacing = PI / self.total_satellites as f64;
-        let el_rad = (PI / 2.0 - theta - half_spacing).max(0.0);
+        let el_rad = max64(PI / 2.0 - theta - half_spacing, 0.0);
         el_rad.to_degrees()
     }
 }
@@ -378,7 +380,7 @@ mod tests {
                 s.elements.true_anomaly_rad
             );
             assert!(
-                s.elements.true_anomaly_rad < 2.0f64.mul_add(PI, 1e-10),
+                s.elements.true_anomaly_rad < (2.0f64 * PI + (1e-10)),
                 "anomaly={} >= 2π",
                 s.elements.true_anomaly_rad
             );

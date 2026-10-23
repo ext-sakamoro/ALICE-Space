@@ -6,6 +6,8 @@
 //!
 //! Author: Moroya Sakamoto
 
+use alice_det_math::sqrt64;
+
 use crate::orbit::SpacecraftState;
 
 /// Two-body gravitational acceleration calculator.
@@ -30,8 +32,8 @@ impl TwoBodyAccel {
     #[inline]
     #[must_use]
     pub fn acceleration(&self, r: &[f64; 3]) -> [f64; 3] {
-        let r2 = r[2].mul_add(r[2], r[0].mul_add(r[0], r[1] * r[1]));
-        let r_mag = r2.sqrt();
+        let r2 = r[2] * r[2] + (r[0] * r[0] + r[1] * r[1]);
+        let r_mag = sqrt64(r2);
         if r_mag < 1e-15 {
             return [0.0, 0.0, 0.0];
         }
@@ -90,8 +92,8 @@ fn rk4_step(state: &State6, dt: f64, accel: TwoBodyAccel) -> State6 {
     let h6 = dt / 6.0;
     let mut out = [0.0; 6];
     for i in 0..6 {
-        let weighted = 2.0f64.mul_add(k3[i], 2.0f64.mul_add(k2[i], k1[i])) + k4[i];
-        out[i] = h6.mul_add(weighted, state[i]);
+        let weighted = (2.0f64 * k3[i] + (2.0f64 * k2[i] + k1[i])) + k4[i];
+        out[i] = h6 * weighted + state[i];
     }
     out
 }
@@ -151,9 +153,9 @@ pub fn propagate_rk4(
 #[inline]
 #[must_use]
 pub fn specific_energy(pos: &[f64; 3], vel: &[f64; 3], mu: f64) -> f64 {
-    let r = (pos[2].mul_add(pos[2], pos[0].mul_add(pos[0], pos[1] * pos[1]))).sqrt();
-    let v2 = vel[2].mul_add(vel[2], vel[0].mul_add(vel[0], vel[1] * vel[1]));
-    v2.mul_add(0.5, -(mu / r))
+    let r = sqrt64(pos[2] * pos[2] + (pos[0] * pos[0] + pos[1] * pos[1]));
+    let v2 = vel[2] * vel[2] + (vel[0] * vel[0] + vel[1] * vel[1]);
+    v2 * 0.5 - (mu / r)
 }
 
 // ── Tests ──────────────────────────────────────────────────────────────
@@ -167,7 +169,7 @@ mod tests {
     fn circular_leo_state() -> SpacecraftState {
         // ISS-like orbit: r = 6778 km, v = sqrt(mu/r) ≈ 7.67 km/s
         let r = 6778.0;
-        let v = (MU_EARTH / r).sqrt();
+        let v = sqrt64(MU_EARTH / r);
         SpacecraftState {
             position_km: [r, 0.0, 0.0],
             velocity_km_s: [0.0, v, 0.0],
@@ -208,7 +210,7 @@ mod tests {
     fn propagate_one_orbit_returns_to_start() {
         let state = circular_leo_state();
         let r = 6778.0;
-        let period = 2.0 * std::f64::consts::PI * (r * r * r / MU_EARTH).sqrt();
+        let period = 2.0 * std::f64::consts::PI * sqrt64(r * r * r / MU_EARTH);
         let dt = 1.0; // 1-second steps for higher accuracy
         let steps = (period / dt).round() as usize;
         let trajectory = propagate_rk4(&state, MU_EARTH, dt, steps);
@@ -218,7 +220,7 @@ mod tests {
         let dx = final_state.position_km[0] - state.position_km[0];
         let dy = final_state.position_km[1] - state.position_km[1];
         let dz = final_state.position_km[2] - state.position_km[2];
-        let error = (dx * dx + dy * dy + dz * dz).sqrt();
+        let error = sqrt64(dx * dx + dy * dy + dz * dz);
         // Error < 5 km after full orbit with 1s steps (RK4 truncation + rounding)
         assert!(error < 5.0, "Position error after one orbit: {error} km");
     }
@@ -244,12 +246,10 @@ mod tests {
         let trajectory = propagate_rk4(&state, MU_EARTH, 30.0, 50);
 
         for s in &trajectory {
-            let r = s.position_km[2]
-                .mul_add(
-                    s.position_km[2],
-                    s.position_km[1].mul_add(s.position_km[1], s.position_km[0].powi(2)),
-                )
-                .sqrt();
+            let r = sqrt64(
+                s.position_km[2] * s.position_km[2]
+                    + (s.position_km[1] * s.position_km[1] + s.position_km[0] * s.position_km[0]),
+            );
             assert!(
                 (r - r_initial).abs() < 0.1,
                 "Radius drift: {} km",
@@ -281,7 +281,7 @@ mod tests {
     fn specific_energy_circular() {
         // Circular orbit: E = -μ/(2a)
         let r = 6778.0;
-        let v = (MU_EARTH / r).sqrt();
+        let v = sqrt64(MU_EARTH / r);
         let e = specific_energy(&[r, 0.0, 0.0], &[0.0, v, 0.0], MU_EARTH);
         let e_expected = -MU_EARTH / (2.0 * r);
         assert!((e - e_expected).abs() < 1e-6);
@@ -334,7 +334,7 @@ mod tests {
     #[test]
     fn specific_energy_negative_for_bound_orbit() {
         let r = 6778.0;
-        let v = (MU_EARTH / r).sqrt(); // circular orbit
+        let v = sqrt64(MU_EARTH / r); // circular orbit
         let e = specific_energy(&[r, 0.0, 0.0], &[0.0, v, 0.0], MU_EARTH);
         assert!(e < 0.0, "Bound orbit should have negative energy: {e}");
     }
@@ -342,7 +342,7 @@ mod tests {
     #[test]
     fn specific_energy_positive_for_escape() {
         let r = 6778.0;
-        let v_escape = (2.0 * MU_EARTH / r).sqrt();
+        let v_escape = sqrt64(2.0 * MU_EARTH / r);
         let v = v_escape * 1.1; // above escape velocity
         let e = specific_energy(&[r, 0.0, 0.0], &[0.0, v, 0.0], MU_EARTH);
         assert!(
@@ -360,11 +360,10 @@ mod tests {
             let p = &state.position_km;
             let v = &state.velocity_km_s;
             // L = r × v, z成分のみ（2D軌道）
-            p[0].mul_add(v[1], -(p[1] * v[0]))
+            p[0] * v[1] - (p[1] * v[0])
         };
         for s in &trajectory {
-            let l = s.position_km[0]
-                .mul_add(s.velocity_km_s[1], -(s.position_km[1] * s.velocity_km_s[0]));
+            let l = s.position_km[0] * s.velocity_km_s[1] - (s.position_km[1] * s.velocity_km_s[0]);
             let rel_err = (l - l0).abs() / l0.abs();
             assert!(rel_err < 1e-7, "角運動量ドリフト: {rel_err}");
         }
@@ -401,7 +400,7 @@ mod tests {
     fn specific_energy_zero_for_parabolic() {
         // 放物線軌道: E = 0 (脱出速度ちょうど)
         let r = 6778.0;
-        let v_escape = (2.0 * MU_EARTH / r).sqrt();
+        let v_escape = sqrt64(2.0 * MU_EARTH / r);
         let e = specific_energy(&[r, 0.0, 0.0], &[0.0, v_escape, 0.0], MU_EARTH);
         assert!(e.abs() < 1e-6, "放物線軌道エネルギー: {e}");
     }
@@ -424,7 +423,7 @@ mod tests {
                 r in 6500.0f64..20000.0,
                 dt in 1.0f64..60.0,
             ) {
-                let v = (MU_EARTH / r).sqrt();
+                let v = sqrt64(MU_EARTH / r);
                 let state = SpacecraftState {
                     position_km: [r, 0.0, 0.0],
                     velocity_km_s: [0.0, v, 0.0],

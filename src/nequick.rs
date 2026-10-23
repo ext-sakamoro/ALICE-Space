@@ -23,6 +23,8 @@
 
 #![allow(clippy::too_long_first_doc_paragraph)]
 
+use alice_det_math::{asin64, cos64, max64, sin64};
+
 /// NeQuick G broadcast coefficients (three effective ionisation levels).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct NequickGCoefficients {
@@ -55,8 +57,7 @@ impl NequickGCoefficients {
     /// (`µ`, degrees). Az = a0 + a1·µ + a2·µ².
     #[must_use]
     pub fn az_sfu(&self, mu_deg: f64) -> f64 {
-        self.a2
-            .mul_add(mu_deg * mu_deg, self.a1.mul_add(mu_deg, self.a0))
+        self.a2 * (mu_deg * mu_deg) + (self.a1 * mu_deg + self.a0)
     }
 }
 
@@ -76,14 +77,14 @@ impl NequickGCoefficients {
 pub fn slant_delay_m(az_sfu: f64, elev_rad: f64, f_hz: f64) -> f64 {
     // Convert Az (10^22 electrons/m^2) to vertical TEC (TECU). NeQuick G
     // documentation uses a linear proxy: vTEC ≈ Az.
-    let vtec_tecu = az_sfu.max(0.0);
+    let vtec_tecu = max64(az_sfu, 0.0);
     // Piercing point obliquity: R_E / (R_E + H).
     let r_e_km = 6371.2_f64;
     let h_ion_km = 350.0_f64;
     let zenith_rad = std::f64::consts::FRAC_PI_2 - elev_rad;
-    let ratio = (r_e_km / (r_e_km + h_ion_km)) * zenith_rad.sin();
-    let z_prime = ratio.asin();
-    let obliquity = 1.0 / z_prime.cos();
+    let ratio = (r_e_km / (r_e_km + h_ion_km)) * sin64(zenith_rad);
+    let z_prime = asin64(ratio);
+    let obliquity = 1.0 / cos64(z_prime);
     // 1 TECU introduces 0.162 m of delay on L1 at 1575.42 MHz (Kaplan
     // 2017 §5.3.3): delay_L1 = 40.31 · TEC / f^2, with f in Hz.
     let stec = vtec_tecu * obliquity;

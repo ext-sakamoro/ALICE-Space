@@ -13,6 +13,8 @@
 // the index pairs the same axis of two 3-vectors
 #![allow(clippy::needless_range_loop)]
 
+use alice_det_math::sin_cos64;
+
 use alice_space::sp3;
 
 const R: f64 = 26_560.0;
@@ -22,7 +24,7 @@ const START_UNIX: u64 = 1_590_278_400;
 
 fn circle(t: f64) -> [f64; 3] {
     let w = 2.0 * core::f64::consts::PI / PERIOD;
-    let (s, c) = (w * t).sin_cos();
+    let (s, c) = sin_cos64(w * t);
     [R * c, R * s, 0.5 * R * s]
 }
 
@@ -70,7 +72,20 @@ fn an_sp3_orbit_interpolates_back_to_the_closed_form() {
         let exact = circle(t);
         // centred 10-node window (9 h^10 spread), less than 1e-6 km of truncation
         // for this orbit; the printed rows round to 5e-7 km
-        let bound = R * (w * 900.0).powi(10) * 1000.0 / 3_628_800.0 + 5e-6;
+        let bound = R
+            * ((w * 900.0)
+                * (w * 900.0)
+                * (w * 900.0)
+                * (w * 900.0)
+                * (w * 900.0)
+                * (w * 900.0)
+                * (w * 900.0)
+                * (w * 900.0)
+                * (w * 900.0)
+                * (w * 900.0))
+            * 1000.0
+            / 3_628_800.0
+            + 5e-6;
         for c in 0..3 {
             assert!(
                 (p[c] - exact[c]).abs() <= bound,

@@ -11,6 +11,8 @@
 //! polynomial evaluated at Unix time; sufficient for orbit visibility
 //! computations in `QZSS` use cases.
 
+use alice_det_math::{atan2_64, cos64, sin64, sqrt64};
+
 use core::f64::consts::PI;
 
 // ---------------------------------------------------------------------------
@@ -77,13 +79,13 @@ pub struct Eci {
 /// Convert geodetic (`WGS-84`) coordinates to `ECEF`.
 #[must_use]
 pub fn geodetic_to_ecef(g: Geodetic) -> Ecef {
-    let sin_lat = g.lat_rad.sin();
-    let cos_lat = g.lat_rad.cos();
-    let sin_lon = g.lon_rad.sin();
-    let cos_lon = g.lon_rad.cos();
+    let sin_lat = sin64(g.lat_rad);
+    let cos_lat = cos64(g.lat_rad);
+    let sin_lon = sin64(g.lon_rad);
+    let cos_lon = cos64(g.lon_rad);
 
     // Radius of curvature in the prime vertical.
-    let n = WGS84_A / (1.0 - WGS84_E2 * sin_lat * sin_lat).sqrt();
+    let n = WGS84_A / sqrt64(1.0 - WGS84_E2 * sin_lat * sin_lat);
 
     Ecef {
         x_m: (n + g.alt_m) * cos_lat * cos_lon,
@@ -103,21 +105,21 @@ pub fn ecef_to_geodetic(e: Ecef) -> Geodetic {
     let y = e.y_m;
     let z = e.z_m;
 
-    let lon_rad = y.atan2(x);
-    let p = (x * x + y * y).sqrt();
+    let lon_rad = atan2_64(y, x);
+    let p = sqrt64(x * x + y * y);
 
     // Bowring parametric latitude estimate.
-    let theta = (z * WGS84_A).atan2(p * WGS84_B);
-    let sin_theta = theta.sin();
-    let cos_theta = theta.cos();
+    let theta = atan2_64(z * WGS84_A, p * WGS84_B);
+    let sin_theta = sin64(theta);
+    let cos_theta = cos64(theta);
 
     let num = z + WGS84_EP2 * WGS84_B * sin_theta * sin_theta * sin_theta;
     let den = p - WGS84_E2 * WGS84_A * cos_theta * cos_theta * cos_theta;
-    let lat_rad = num.atan2(den);
+    let lat_rad = atan2_64(num, den);
 
-    let sin_lat = lat_rad.sin();
-    let n = WGS84_A / (1.0 - WGS84_E2 * sin_lat * sin_lat).sqrt();
-    let cos_lat = lat_rad.cos();
+    let sin_lat = sin64(lat_rad);
+    let n = WGS84_A / sqrt64(1.0 - WGS84_E2 * sin_lat * sin_lat);
+    let cos_lat = cos64(lat_rad);
     // Use the horizontal projection to avoid division by cos(lat) near the poles.
     let alt_m = if cos_lat.abs() > 1e-12 {
         p / cos_lat - n
@@ -140,8 +142,8 @@ pub fn ecef_to_geodetic(e: Ecef) -> Geodetic {
 /// Mean Sidereal Time.
 #[must_use]
 pub fn ecef_to_eci(e: Ecef, gmst_rad: f64) -> Eci {
-    let cos_g = gmst_rad.cos();
-    let sin_g = gmst_rad.sin();
+    let cos_g = cos64(gmst_rad);
+    let sin_g = sin64(gmst_rad);
     Eci {
         x_m: cos_g * e.x_m - sin_g * e.y_m,
         y_m: sin_g * e.x_m + cos_g * e.y_m,
@@ -153,8 +155,8 @@ pub fn ecef_to_eci(e: Ecef, gmst_rad: f64) -> Eci {
 /// Sidereal Time.
 #[must_use]
 pub fn eci_to_ecef(e: Eci, gmst_rad: f64) -> Ecef {
-    let cos_g = gmst_rad.cos();
-    let sin_g = gmst_rad.sin();
+    let cos_g = cos64(gmst_rad);
+    let sin_g = sin64(gmst_rad);
     Ecef {
         x_m: cos_g * e.x_m + sin_g * e.y_m,
         y_m: -sin_g * e.x_m + cos_g * e.y_m,
@@ -289,7 +291,7 @@ mod tests {
         // A satellite at ~35_786 km altitude on the equator.
         let sat = Geodetic::from_degrees(0.0, 135.0, 35_786_000.0);
         let ecef = geodetic_to_ecef(sat);
-        let range = (ecef.x_m.powi(2) + ecef.y_m.powi(2) + ecef.z_m.powi(2)).sqrt();
+        let range = sqrt64((ecef.x_m * ecef.x_m) + ecef.y_m * ecef.y_m + ecef.z_m * ecef.z_m);
         // Should be about a + 35_786_000 m from Earth centre.
         let expected = WGS84_A + 35_786_000.0;
         assert!((range - expected).abs() < 1.0);

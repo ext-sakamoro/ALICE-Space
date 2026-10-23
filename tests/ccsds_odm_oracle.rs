@@ -15,6 +15,8 @@
 // the index pairs the same axis of two 3-vectors
 #![allow(clippy::needless_range_loop)]
 
+use alice_det_math::sin_cos64;
+
 use alice_space::ccsds_odm::{self, Interpolation, OdmEpoch, OdmError};
 
 const R: f64 = 7000.0;
@@ -25,7 +27,7 @@ fn omega() -> f64 {
 
 fn circle(t: f64) -> ([f64; 3], [f64; 3]) {
     let w = omega();
-    let (s, c) = (w * t).sin_cos();
+    let (s, c) = sin_cos64(w * t);
     ([R * c, R * s, 0.0], [-R * w * s, R * w * c, 0.0])
 }
 
@@ -127,8 +129,22 @@ fn an_oem_of_a_circular_orbit_interpolates_back_to_it() {
 
     let w = omega();
     // printed to 1e-9 km / 1e-12 km/s: the rounding of the rows adds ~1e-9 km
-    let lag_bound = R * (w * 60.0).powi(8) / 4.0 / 8.0 + 2e-8;
-    let her_bound = R * (w * 60.0).powi(6) * 4.0 / 720.0 + 2e-8;
+    let lag_bound = R
+        * ((w * 60.0)
+            * (w * 60.0)
+            * (w * 60.0)
+            * (w * 60.0)
+            * (w * 60.0)
+            * (w * 60.0)
+            * (w * 60.0)
+            * (w * 60.0))
+        / 4.0
+        / 8.0
+        + 2e-8;
+    let her_bound =
+        R * ((w * 60.0) * (w * 60.0) * (w * 60.0) * (w * 60.0) * (w * 60.0) * (w * 60.0)) * 4.0
+            / 720.0
+            + 2e-8;
     let mut compared = 0;
     for k in 0..59 {
         let t = 60.0 * f64::from(k) + 23.7;
@@ -169,7 +185,18 @@ fn a_decimated_oem_recovers_the_removed_rows() {
     assert_eq!(h.epochs.len(), 31);
     let w = omega();
     // spacing 120 s in the decimated table
-    let bound = R * (w * 120.0).powi(8) / 4.0 / 8.0 + 2e-8;
+    let bound = R
+        * ((w * 120.0)
+            * (w * 120.0)
+            * (w * 120.0)
+            * (w * 120.0)
+            * (w * 120.0)
+            * (w * 120.0)
+            * (w * 120.0)
+            * (w * 120.0))
+        / 4.0
+        / 8.0
+        + 2e-8;
     let mut compared = 0;
     for i in (1..60).step_by(2) {
         let (p, _) = h.state_at(&f.epochs[i]).expect("interpolates");
@@ -364,7 +391,18 @@ fn a_segment_across_midnight_interpolates_back_to_the_orbit() {
         "the segment spans two days"
     );
     let w = omega();
-    let bound = R * (w * 60.0).powi(8) / 4.0 / 8.0 + 2e-8;
+    let bound = R
+        * ((w * 60.0)
+            * (w * 60.0)
+            * (w * 60.0)
+            * (w * 60.0)
+            * (w * 60.0)
+            * (w * 60.0)
+            * (w * 60.0)
+            * (w * 60.0))
+        / 4.0
+        / 8.0
+        + 2e-8;
     let mut compared = 0;
     for k in 0..89 {
         let t = 60.0 * f64::from(k) + 23.7; // seconds from the segment start

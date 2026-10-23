@@ -5,6 +5,8 @@
 //!
 //! Author: Moroya Sakamoto
 
+use alice_det_math::{log10_64, powf64};
+
 use crate::fnv1a;
 use std::f64::consts::PI;
 
@@ -26,7 +28,7 @@ pub fn friis_path_loss_db(distance_km: f64, frequency_ghz: f64) -> f64 {
     let d_m = distance_km * 1000.0;
     let f_hz = frequency_ghz * 1e9;
     let c_m_s = C_KM_S * 1000.0;
-    20.0 * (4.0 * PI * d_m * f_hz / c_m_s).log10()
+    20.0 * log10_64(4.0 * PI * d_m * f_hz / c_m_s)
 }
 
 /// Link budget parameters.
@@ -100,13 +102,13 @@ impl LinkBudget {
         let received_power = eirp + self.rx_gain_dbi - path_loss;
 
         // Noise power: N = k * T * B (in dB: k_dB + 10*log10(T) + 10*log10(B))
-        let noise_power = 10.0f64.mul_add(self.system_noise_temp_k.log10(), K_BOLTZMANN_DBW);
+        let noise_power = 10.0f64 * (log10_64(self.system_noise_temp_k)) + K_BOLTZMANN_DBW;
 
         // C/N0 = received_power - noise_power (dB-Hz)
         let cn0 = received_power - noise_power;
 
         // Eb/N0 = C/N0 - 10*log10(data_rate)
-        let eb_n0 = 10.0f64.mul_add(-self.data_rate_bps.log10(), cn0);
+        let eb_n0 = 10.0f64 * (-log10_64(self.data_rate_bps)) + cn0;
 
         // Margin = Eb/N0 - required_Eb/N0 - implementation_loss
         let margin = eb_n0 - self.required_eb_n0_db - self.implementation_loss_db;
@@ -147,10 +149,10 @@ impl LinkBudget {
         let path_loss = friis_path_loss_db(self.distance_km, self.frequency_ghz);
         let eirp = self.tx_power_dbw + self.tx_gain_dbi;
         let received = eirp + self.rx_gain_dbi - path_loss;
-        let noise = 10.0f64.mul_add(self.system_noise_temp_k.log10(), K_BOLTZMANN_DBW);
+        let noise = 10.0f64 * (log10_64(self.system_noise_temp_k)) + K_BOLTZMANN_DBW;
         let cn0 = received - noise;
         let max_log_r = cn0 - self.required_eb_n0_db - self.implementation_loss_db;
-        10.0_f64.powf(max_log_r / 10.0)
+        powf64(10.0_f64, max_log_r / 10.0)
     }
 }
 

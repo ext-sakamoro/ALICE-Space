@@ -254,6 +254,17 @@ need actionlint "brew install actionlint"
 step "ci.yml / fmt: Check formatting"
 ( export CARGO_TERM_COLOR="always"; cargo fmt -- --check )
 
+step "ci.yml / clippy: Clippy with clippy.toml's disallowed methods as errors"
+relint
+(
+  export CARGO_TERM_COLOR="always"
+  # the gate is clippy.toml: no platform libm, no fused multiply-add, no
+  # platform max / min anywhere in the crate; a missing list would lint nothing
+  grep -q '"f64::mul_add"' clippy.toml
+  grep -q '"f64::sin"' clippy.toml
+  cargo clippy --all-targets --all-features -- -D warnings
+)
+
 step "ci.yml / actionlint: actionlint"
 actionlint .github/workflows/*.yml
 

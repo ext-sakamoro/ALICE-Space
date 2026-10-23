@@ -21,6 +21,8 @@
 //! - Leick, A., Rapoport, L., & Tatarnikov, D. (2015), "GPS Satellite
 //!   Surveying", 4th ed., Wiley.
 
+use alice_det_math::{exp64, max64, sin64};
+
 /// Surface meteorological conditions used by the Hopfield model.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct SurfaceConditions {
@@ -50,7 +52,7 @@ impl SurfaceConditions {
     #[must_use]
     pub fn saturation_pressure_hpa(&self) -> f64 {
         let t_c = self.temperature_k - 273.15;
-        6.1078 * (17.27 * t_c / (t_c + 237.3)).exp()
+        6.1078 * exp64(17.27 * t_c / (t_c + 237.3))
     }
 
     /// Partial water vapour pressure in hPa.
@@ -90,13 +92,13 @@ impl ZenithDelay {
 #[must_use]
 pub fn zenith_delay(cond: SurfaceConditions) -> ZenithDelay {
     let t_c = cond.temperature_k - 273.15;
-    let hd = 148.72_f64.mul_add(t_c, 40_136.0);
+    let hd = 148.72_f64 * t_c + 40_136.0;
     let hw = 11_000.0_f64;
     let e = cond.water_vapour_pressure_hpa();
 
-    let dry_m = 155.2e-7 * cond.pressure_hpa / cond.temperature_k * (hd - cond.height_m).max(0.0);
+    let dry_m = 155.2e-7 * cond.pressure_hpa / cond.temperature_k * max64(hd - cond.height_m, 0.0);
     let wet_m = 155.2e-7 * 4810.0 * e / (cond.temperature_k * cond.temperature_k)
-        * (hw - cond.height_m).max(0.0);
+        * max64(hw - cond.height_m, 0.0);
     ZenithDelay { dry_m, wet_m }
 }
 
@@ -111,8 +113,8 @@ pub fn zenith_delay(cond: SurfaceConditions) -> ZenithDelay {
 #[must_use]
 pub fn simple_mapping(elev_rad: f64) -> f64 {
     let min = 3.0_f64.to_radians();
-    let e = elev_rad.max(min);
-    1.0 / e.sin()
+    let e = max64(elev_rad, min);
+    1.0 / sin64(e)
 }
 
 /// Slant delay in metres for the given zenith delay and elevation angle

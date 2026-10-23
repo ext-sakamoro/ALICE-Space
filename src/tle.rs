@@ -15,6 +15,8 @@
 //! The returned [`Tle`] carries the raw parsed fields; higher-level converters
 //! translate them into [`crate::orbit::OrbitalElements`].
 
+use alice_det_math::powf64;
+
 use crate::orbit::OrbitalElements;
 use core::f64::consts::PI;
 use core::fmt;
@@ -119,7 +121,7 @@ impl Tle {
     #[must_use]
     pub fn semi_major_axis_km(&self) -> f64 {
         let n_rad_per_sec = self.mean_motion_rev_per_day * 2.0 * PI / 86_400.0;
-        (MU_EARTH_KM3_S2 / (n_rad_per_sec * n_rad_per_sec)).cbrt()
+        powf64(MU_EARTH_KM3_S2 / (n_rad_per_sec * n_rad_per_sec), 1.0 / 3.0)
     }
 
     /// Build a [`OrbitalElements`] snapshot at epoch.
