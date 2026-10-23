@@ -69,10 +69,23 @@ pub const ECLIPSE_CONICAL: Law = Law {
     semantics_id: ECLIPSE_CONICAL_ID,
 };
 
+/// The zonal gravity field: the acceleration and potential of
+/// `gravity::ZonalGravity` (Bonnet's recursion, terms summed from J2 up).
+pub const ZONAL_GRAVITY_ID: [u8; 32] = [
+    0x32, 0x25, 0xb4, 0xde, 0xa0, 0xc0, 0xd7, 0x50, 0xaf, 0x46, 0x30, 0xc7, 0xb1, 0xe2, 0xe9, 0xd7,
+    0xa6, 0x76, 0xd0, 0x3d, 0x0c, 0x72, 0x94, 0x89, 0xfe, 0xd5, 0xf1, 0xb6, 0x2e, 0x0f, 0x1d, 0x07,
+];
+/// [`ZONAL_GRAVITY_ID`] with its name.
+pub const ZONAL_GRAVITY: Law = Law {
+    name: "alice-space/zonal-gravity",
+    semantics_id: ZONAL_GRAVITY_ID,
+};
+
 /// Every Law of the crate.
-pub const ALL: [Law; 4] = [
+pub const ALL: [Law; 5] = [
     SGP4_AFSPC_WGS72,
     ODM_INTERP_LAGRANGE,
     ODM_INTERP_HERMITE,
     ECLIPSE_CONICAL,
+    ZONAL_GRAVITY,
 ];

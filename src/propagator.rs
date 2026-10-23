@@ -1,14 +1,21 @@
 //! RK4 numerical orbit propagator
 //!
-//! 4th-order Runge-Kutta integration for two-body orbital mechanics.
-//! Propagates spacecraft state vectors forward in time using the
-//! gravitational acceleration a = -μ r / |r|³.
+//! 4th-order Runge-Kutta integration of r'' = a(r). The two-body functions use
+//! a = -μ r / |r|³; [`propagate_rk4_field`] takes any [`Acceleration`], such as
+//! the zonal field of [`crate::gravity::ZonalGravity`].
 //!
 //! Author: Moroya Sakamoto
 
 use alice_det_math::sqrt64;
 
+use crate::gravity::ZonalGravity;
 use crate::orbit::SpacecraftState;
+
+/// A position-dependent acceleration field.
+pub trait Acceleration {
+    /// Acceleration (km/s²) at position `r` (km).
+    fn acceleration(&self, r: &[f64; 3]) -> [f64; 3];
+}
 
 /// Two-body gravitational acceleration calculator.
 ///
@@ -43,6 +50,18 @@ impl TwoBodyAccel {
     }
 }
 
+impl Acceleration for TwoBodyAccel {
+    fn acceleration(&self, r: &[f64; 3]) -> [f64; 3] {
+        Self::acceleration(self, r)
+    }
+}
+
+impl Acceleration for ZonalGravity<'_> {
+    fn acceleration(&self, r: &[f64; 3]) -> [f64; 3] {
+        Self::acceleration(self, r)
+    }
+}
+
 /// 6-element state: [x, y, z, vx, vy, vz]
 type State6 = [f64; 6];
 
@@ -54,7 +73,7 @@ const fn pack(pos: &[f64; 3], vel: &[f64; 3]) -> State6 {
 
 /// Compute derivative: d/dt [r, v] = [v, a(r)]
 #[inline]
-fn deriv(state: &State6, accel: TwoBodyAccel) -> State6 {
+fn deriv<A: Acceleration + ?Sized>(state: &State6, accel: &A) -> State6 {
     let r = [state[0], state[1], state[2]];
     let a = accel.acceleration(&r);
     [state[3], state[4], state[5], a[0], a[1], a[2]]
@@ -82,7 +101,7 @@ fn add(a: &State6, b: &State6) -> State6 {
 /// Perform a single RK4 step.
 ///
 /// Returns the new state after advancing by `dt` seconds.
-fn rk4_step(state: &State6, dt: f64, accel: TwoBodyAccel) -> State6 {
+fn rk4_step<A: Acceleration + ?Sized>(state: &State6, dt: f64, accel: &A) -> State6 {
     let k1 = deriv(state, accel);
     let k2 = deriv(&add(state, &scale(&k1, dt * 0.5)), accel);
     let k3 = deriv(&add(state, &scale(&k2, dt * 0.5)), accel);
@@ -105,7 +124,7 @@ fn rk4_step(state: &State6, dt: f64, accel: TwoBodyAccel) -> State6 {
 pub fn propagate_rk4_single(state: &SpacecraftState, mu: f64, dt_s: f64) -> SpacecraftState {
     let accel = TwoBodyAccel::new(mu);
     let s = pack(&state.position_km, &state.velocity_km_s);
-    let s_new = rk4_step(&s, dt_s, accel);
+    let s_new = rk4_step(&s, dt_s, &accel);
     let dt_ns = (dt_s * 1e9) as u64;
 
     SpacecraftState {
@@ -127,7 +146,21 @@ pub fn propagate_rk4(
     dt_s: f64,
     steps: usize,
 ) -> Vec<SpacecraftState> {
-    let accel = TwoBodyAccel::new(mu);
+    propagate_rk4_field(initial, &TwoBodyAccel::new(mu), dt_s, steps)
+}
+
+/// Propagate a spacecraft state forward using RK4 integration in the
+/// acceleration field `field`.
+///
+/// Advances the state by `steps` steps of `dt_s` seconds each.
+/// Returns a Vec of states at each step (length = steps + 1, including initial).
+#[must_use]
+pub fn propagate_rk4_field<A: Acceleration + ?Sized>(
+    initial: &SpacecraftState,
+    field: &A,
+    dt_s: f64,
+    steps: usize,
+) -> Vec<SpacecraftState> {
     let mut results = Vec::with_capacity(steps + 1);
     let mut s = pack(&initial.position_km, &initial.velocity_km_s);
     let mut t_ns = initial.timestamp_ns;
@@ -136,7 +169,7 @@ pub fn propagate_rk4(
     results.push(initial.clone());
 
     for _ in 0..steps {
-        s = rk4_step(&s, dt_s, accel);
+        s = rk4_step(&s, dt_s, field);
         t_ns += dt_ns;
         results.push(SpacecraftState {
             position_km: [s[0], s[1], s[2]],

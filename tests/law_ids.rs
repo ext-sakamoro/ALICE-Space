@@ -16,6 +16,7 @@
 use alice_space::eclipse::{
     conical_illumination, Eclipse, EARTH_EQUATORIAL_RADIUS_KM, MOON_RADIUS_KM, SUN_RADIUS_KM,
 };
+use alice_space::gravity::ZonalGravity;
 use alice_space::interp;
 use alice_space::law::{self, Law};
 use alice_space::sgp4::{GravityModel, MeanElements, OpsMode, Sgp4};
@@ -33,6 +34,10 @@ const REFERENCE_INTERP_INPUTS: (&str, usize) = (
     "c961a51b59284a2dd0b246c71155a9467fdc7fe62654b55f76628180dd50bf40",
     65,
 );
+const REFERENCE_ZONAL_INPUTS: (&str, usize) = (
+    "be322080b9a1056ade3b4d56c494049f661d6b157b5c4c43195d5f3692e37e34",
+    121,
+);
 const REFERENCE_ECLIPSE_INPUTS: (&str, usize) = (
     "861ec7ff24119095b759d0addd620f776dbc325b368e0a65ce17de9c9cf19025",
     459,
@@ -45,6 +50,8 @@ const REFERENCE_ODM_INTERP_LAGRANGE: &str =
     "f39757dfd592d4cf3432e82a504ec2a0fa9b984630bb0e78af3877e93bf2ae09";
 const REFERENCE_ODM_INTERP_HERMITE: &str =
     "a784541638c556fbb44843db44e33cd71bc10465aeb0ff7ccaa2034421cdd9a2";
+const REFERENCE_ZONAL_GRAVITY: &str =
+    "eca9b9a0460ae56e5032586e19bfd245382c0cbc1305c444f95013dcb0b8ff0b";
 const REFERENCE_ECLIPSE_CONICAL: &str =
     "79fb3bf85b47c6a1c2901395be9c8a7f5578aa8c9b5256fecac44ffc4903bc8b";
 
@@ -266,6 +273,68 @@ fn eclipse_outputs(cases: &[EclipseCase]) -> Vec<u8> {
     out
 }
 
+// ---- zonal gravity ---------------------------------------------------------
+
+/// Two coefficient sets (J2..J6 of Earth-like size, and J2..J12 of
+/// decreasing size) at 120 positions with whole-kilometre coordinates, from
+/// the poles to the equator and 1 to 10 Earth radii, and the centre.
+type ZonalCase = ([f64; 3], usize);
+
+const ZONAL_SETS: [&[f64]; 2] = [
+    &[1.082_63e-3, -2.53e-6, -1.62e-6, -2.3e-7, 5.4e-7],
+    &[
+        1.0e-3, -7.7e-4, 5.9e-4, -4.6e-4, 3.5e-4, -2.7e-4, 2.1e-4, -1.6e-4, 1.2e-4, -9.4e-5, 7.3e-5,
+    ],
+];
+
+fn zonal_cases() -> Vec<ZonalCase> {
+    let mut v = Vec::new();
+    for k in 0..120i32 {
+        let scale = 6_400 + 9_000 * (k % 7);
+        let (a, b, c) = (k % 5 - 2, (k * 3) % 7 - 3, (k * 7) % 9 - 4);
+        let d = match a.abs() + b.abs() + c.abs() {
+            0 => 1,
+            n => n,
+        };
+        // the components in whole kilometres; a polar direction when a = b = 0
+        let pole = if a == 0 && b == 0 { scale } else { 0 };
+        let r = [
+            f64::from(scale * a / d),
+            f64::from(scale * b / d),
+            f64::from(scale * c / d + pole),
+        ];
+        v.push((r, (k % 2) as usize));
+    }
+    v.push(([0.0; 3], 0));
+    v
+}
+
+fn zonal_input_bytes(cases: &[ZonalCase]) -> Vec<u8> {
+    let mut out = Vec::new();
+    for set in ZONAL_SETS {
+        bits(&mut out, set);
+    }
+    for (r, set) in cases {
+        bits(&mut out, r);
+        out.extend([*set as u8]);
+    }
+    out
+}
+
+fn zonal_outputs(cases: &[ZonalCase]) -> Vec<u8> {
+    let mut out = Vec::new();
+    for &(r, set) in cases {
+        let field = ZonalGravity {
+            mu: 398_600.441_5,
+            radius: 6_378.136_3,
+            zonals: ZONAL_SETS[set],
+        };
+        bits(&mut out, &field.acceleration(&r));
+        bits(&mut out, &[field.potential(&r)]);
+    }
+    out
+}
+
 // ---- identifiers -----------------------------------------------------------
 
 fn law_id(law: &Law, data: &[u8], grid: (&str, usize), reference: &str) -> [u8; 32] {
@@ -286,7 +355,14 @@ fn reference_grids_are_frozen() {
     let sets = sgp4_sets();
     let (_, _, _, queries) = interp_table();
     let cases = eclipse_cases();
+    let zonal = zonal_cases();
     let got = [
+        (
+            "ZONAL_INPUTS",
+            digest(&zonal_input_bytes(&zonal)),
+            zonal.len(),
+            REFERENCE_ZONAL_INPUTS,
+        ),
         (
             "SGP4_INPUTS",
             digest(&sgp4_input_bytes(&sets)),
@@ -347,6 +423,11 @@ fn reference_digests() {
             eclipse_outputs(&cases),
             REFERENCE_ECLIPSE_CONICAL,
         ),
+        (
+            "ZONAL_GRAVITY",
+            zonal_outputs(&zonal_cases()),
+            REFERENCE_ZONAL_GRAVITY,
+        ),
     ];
     let mut bad = Vec::new();
     for (name, bytes, want) in &got {
@@ -383,6 +464,10 @@ fn semantics_ids() {
     let mut eclipse = Vec::new();
     bits(&mut eclipse, &[SUN_RADIUS_KM]);
     eclipse.extend(alice_det_math::SEMANTICS_ID);
+    // the recursion (no transcendental but the square root)
+    let mut zonal =
+        b"Bonnet recursion; terms summed from J2 up; a = -(mu/r^2)(radial r^ + axial z^)".to_vec();
+    zonal.extend(alice_det_math::SEMANTICS_ID);
     let cases = [
         (
             law::SGP4_AFSPC_WGS72,
@@ -407,6 +492,12 @@ fn semantics_ids() {
             eclipse,
             REFERENCE_ECLIPSE_INPUTS,
             REFERENCE_ECLIPSE_CONICAL,
+        ),
+        (
+            law::ZONAL_GRAVITY,
+            zonal,
+            REFERENCE_ZONAL_INPUTS,
+            REFERENCE_ZONAL_GRAVITY,
         ),
     ];
     let mut bad = Vec::new();
