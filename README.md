@@ -6,6 +6,7 @@ Deep-space communication, autonomous trajectory control, and model-differential 
 
 - Keplerian orbital mechanics: period, vis-viva velocity, Hohmann transfer delta-v, light delay
 - RK4 numerical orbit propagator with energy conservation verification
+- SGP4 / SDP4 propagation of TLE mean elements (Vallado 2006 revision, TEME output), matching Vallado's verification output for all 33 test sets; every transcendental goes through `alice-det-math`, so the result does not depend on the platform's math library (the bit-level golden is checked on x86_64 Linux and arm64 macOS)
 - Two-body gravitational acceleration with reciprocal-optimized computation
 - Walker Delta Pattern constellation generator (GPS, Iridium, and arbitrary T/P/F configurations)
 - Friis free-space path loss and full link budget analysis (EIRP, C/N0, Eb/N0, margin)
@@ -14,7 +15,7 @@ Deep-space communication, autonomous trajectory control, and model-differential 
 - Decision-tree fault detection (sensor anomaly, thruster degradation, comm loss, power fault, attitude error)
 - Append-only mission event log with delta-v accounting and phase filtering
 - FNV-1a deterministic content hashing on all output types
-- Zero external dependencies
+- One dependency: `alice-det-math` (bit-identical `f64` transcendentals for the SGP4 module)
 
 ## Module Overview
 
@@ -22,6 +23,7 @@ Deep-space communication, autonomous trajectory control, and model-differential 
 |---|---|---|
 | `orbit` | `OrbitalElements`, `SpacecraftState`, `CelestialBody`, `BodyId` | Keplerian elements, state vectors, and orbital mechanics primitives |
 | `propagator` | `TwoBodyAccel`, `propagate_rk4`, `propagate_rk4_single` | 4th-order Runge-Kutta two-body orbit integration |
+| `sgp4` | `Sgp4`, `MeanElements`, `TemeState`, `GravityModel`, `OpsMode` | SGP4 / SDP4 analytical propagation of TLE mean elements (TEME km, km/s) |
 | `comm` | `CommLink`, `ModelDifferential` | Deep-space link latency, bandwidth windows, and compact parameter differentials |
 | `autonomy` | `TrajectoryModel`, `ControlDecision`, `DecisionNode`, `FaultType`, `AutonomyLevel` | Polynomial trajectory models, correction computation, and fault detection |
 | `constellation` | `WalkerConstellation`, `WalkerSatellite` | Walker Delta Pattern satellite constellation layout generator |

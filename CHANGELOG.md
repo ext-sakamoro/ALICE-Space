@@ -8,6 +8,7 @@ All notable changes to ALICE-Space will be documented in this file.
 - **License: `AGPL-3.0-only OR LicenseRef-Commercial` → `LicenseRef-Proprietary`** (all rights reserved、`publish = false`) 0.7.0 までに公開した版は公開時の license (`AGPL-3.0-only OR LicenseRef-Commercial`) のまま `LICENSE-AGPL` と `LICENSE-COMMERCIAL.md` を外し `LICENSE` を置いた README の license の節と TRADEMARK_NOTICE の参照を合わせた
 
 ### Added
+- `sgp4`: SGP4 / SDP4 (Vallado, Crawford, Hujsak, Kelso 2006 revision, AIAA 2006-6753) for TLE mean elements `Sgp4::new(&MeanElements, GravityModel, OpsMode)` と `Sgp4::propagate(minutes)` が TEME の位置 (km)・速度 (km/s) を返す `MeanElements::from_tle` で `tle::Tle` から作る 三角関数・逆三角関数・冪は全て alice-det-math (全 target で同じ bit) で、SDP4 の共鳴の積分は呼び出しごとに epoch から始めるので結果は呼び出しの順序に依らない 初期化は e が [0, 1) の外、平均運動が正でない、NaN・無限大の field を `Sgp4InitError` で拒む (参照実装は 0 除算か負数の平方根になる入力) 伝播の誤差は参照の code 1-6 (`Sgp4Error`、NaN も範囲外として扱う) 試験 `tests/sgp4_vallado.rs`: Vallado の検証 TLE 33 組 (`SGP4-VER.TLE`) を参照の C++ の出力 (`tcppver.out`) と 666 状態 × 7 field で比べ差は 2e-7 未満 (最大 1.15e-7)、誤差の列 1, 1, 6, 6, 4, 3, 6 も一致、2 file は python-sgp4 (MIT) から持ってきて SHA-256 で固定、全状態の bit の SHA-256 を golden に (x86_64 Linux の CI と arm64 macOS で確認、他の target は CI に lane が無い) `tests/sgp4_degenerate.rs`: 円軌道・範囲外の e・0 と負と NaN の平均運動・NaN の時刻・大きな抗力での落下 依存に alice-det-math 0.5.1 (git rev 9252dd2) を足した
 - CI: `Test (public siblings)` job `cargo test --all-features` を走らせ、cargo の失敗、失敗した試験、通った試験が 346 件未満のどれでも失敗 `ci/**` の push でも走る `scripts/preflight.sh` は生成し直して同じ step を持つ
 
 ### Changed

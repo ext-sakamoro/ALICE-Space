@@ -10,9 +10,12 @@ repository = "https://github.com/ext-sakamoro/ALICE-Space"
 keywords = ["space", "orbit", "gnss", "geodetic", "tle"]
 
 [dependencies]
+# every f64 transcendental of the SGP4 module goes through alice-det-math (bit-identical on all targets)
+alice-det-math = { git = "https://github.com/ext-sakamoro/ALICE-DetMath", rev = "9252dd22b0aae3110687097836808572a5323947", version = "0.5.1", default-features = false }
 
 [dev-dependencies]
 proptest = "1.4"
+sha2 = "0.10"
 
 [lib]
 name = "alice_space"

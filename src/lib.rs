@@ -75,6 +75,7 @@ pub mod qzss_l6;
 pub mod rinex;
 pub mod rtcm3;
 pub mod sbas;
+pub mod sgp4;
 pub mod sp3;
 pub mod tle;
 pub mod troposphere;
