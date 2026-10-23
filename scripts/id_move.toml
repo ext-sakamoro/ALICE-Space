@@ -1,0 +1,19 @@
+# scripts/id_move_check.py (ALICE-Law G9): the identifiers whose value may move only with a
+# breaking version (CHANGELOG naming both values). The Laws' identifiers are new in 0.8.0 and
+# have no previous values. The check is wired into CI once the shared checker that reads the
+# base from the newest version bump (this crate has no release tag) is copied here.
+package = "alice-space"
+manifest = "Cargo.toml"
+tags = ["v{version}"]
+
+[[id]]
+path = "alice_space::law::SGP4_AFSPC_WGS72_ID"
+
+[[id]]
+path = "alice_space::law::ODM_INTERP_LAGRANGE_ID"
+
+[[id]]
+path = "alice_space::law::ODM_INTERP_HERMITE_ID"
+
+[[id]]
+path = "alice_space::law::ECLIPSE_CONICAL_ID"
