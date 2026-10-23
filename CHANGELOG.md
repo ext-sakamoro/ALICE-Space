@@ -4,6 +4,9 @@ All notable changes to ALICE-Space will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- **License: `AGPL-3.0-only OR LicenseRef-Commercial` → `LicenseRef-Proprietary`** (all rights reserved、`publish = false`) 0.7.0 までに公開した版は公開時の license (`AGPL-3.0-only OR LicenseRef-Commercial`) のまま `LICENSE-AGPL` と `LICENSE-COMMERCIAL.md` を外し `LICENSE` を置いた README の license の節と TRADEMARK_NOTICE の参照を合わせた
+
 ### Added
 - CI: `Test (public siblings)` job `cargo test --all-features` を走らせ、cargo の失敗、失敗した試験、通った試験が 346 件未満のどれでも失敗 `ci/**` の push でも走る `scripts/preflight.sh` は生成し直して同じ step を持つ
 
