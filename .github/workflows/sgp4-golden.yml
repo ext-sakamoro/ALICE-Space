@@ -12,21 +12,6 @@ on:
   # job decides instead, from everything the push brings against main.
   push:
     branches: [main, 'ci/**']
-  pull_request:
-    branches: [main]
-    paths:
-      - src/**
-      - tests/law_ids.rs
-      - src/sgp4.rs
-      - src/tle.rs
-      - tests/sgp4_vallado.rs
-      - tests/tle_assumed_decimal.rs
-      - tests/data/sgp4/**
-      - Cargo.toml
-      - rust-toolchain.toml
-      - src/lib.rs
-      - .gitattributes
-      - .github/workflows/sgp4-golden.yml
   workflow_dispatch:
 
 env:
