@@ -24,7 +24,7 @@ All notable changes to ALICE-Space will be documented in this file.
 ### Changed
 - `sgp4::epoch_days_since_1950`: 1 月 1 日までの日数を Julian date の式でなく整数の日数から作る (結果の bit は同じ、参照と同じ Julian date 経由の丸めは保つ) OMM の epoch も同じ関数を通す
 - **License: `AGPL-3.0-only OR LicenseRef-Commercial` → `LicenseRef-Proprietary`** (all rights reserved、`publish = false`、版を 0.8.0 に上げた) 0.7.0 までに公開した版は公開時の license (`AGPL-3.0-only OR LicenseRef-Commercial`) のまま `LICENSE-AGPL` と `LICENSE-COMMERCIAL.md` を外し `LICENSE` を置いた README の license の節と TRADEMARK_NOTICE の参照を合わせた
-- **License: `AGPL-3.0-only` → `AGPL-3.0-only OR LicenseRef-Commercial` (dual-licensed、2026-09-27)** AGPL 側の条件は変更なし (既存 AGPL 利用者への影響ゼロ)、商用という選択肢が追加されただけ SPDX が AGPL 単独だと cargo-deny / FOSSA / SBOM に「商用オプションなし」と見えるため宣言を dual に 変更点: SPDX / `LICENSE` → `LICENSE-AGPL` / `LICENSE-COMMERCIAL.md` (商用トリガー 6 条件 = クローズド製品・商用 SaaS・エッジ / ファームウェア配布・plugin 再配布・プラットフォーム NDA・保証、社内利用は AGPL 側で無償と明記) / README の選択肢表 商用窓口は法人 `contact@extoria.co.jp`
+- License: `AGPL-3.0-only` → `AGPL-3.0-only OR LicenseRef-Commercial` (2026-09-27)
 - CI: `.github/preflight-exact` を置いた `scripts/preflight.sh` が生成器の出力 (見出しの `generator rev` の版) と byte で一致しなければ送る前の確認が通らない
 - 設定 file の comment を中身の説明だけにし、.gitignore を project の build 出力だけにした
 - ライセンス全文を公式の AGPL v3 に置き換え
