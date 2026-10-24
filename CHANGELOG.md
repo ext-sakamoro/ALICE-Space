@@ -22,6 +22,7 @@ All notable changes to ALICE-Space will be documented in this file.
 - CI: `Test (public siblings)` job `cargo test --all-features` を走らせ、cargo の失敗、失敗した試験、通った試験が 346 件未満のどれでも失敗 `ci/**` の push でも走る `scripts/preflight.sh` は生成し直して同じ step を持つ
 
 ### Changed
+- 依存: `alice-det-math` を git rev `6384856c` (0.5.2) で、`alice-ephemeris` を rev `6fb20144` で引く `alice-zip` (rev `3d75fcf3`、0.11.0) を足した
 - `sgp4::epoch_days_since_1950`: 1 月 1 日までの日数を Julian date の式でなく整数の日数から作る (結果の bit は同じ、参照と同じ Julian date 経由の丸めは保つ) OMM の epoch も同じ関数を通す
 - Licence: `AGPL-3.0-only OR LicenseRef-Commercial` → `LicenseRef-Proprietary`
 - License: `AGPL-3.0-only` → `AGPL-3.0-only OR LicenseRef-Commercial` (2026-09-27)
