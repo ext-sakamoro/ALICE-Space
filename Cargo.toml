@@ -11,9 +11,11 @@ keywords = ["space", "orbit", "gnss", "geodetic", "tle"]
 
 [dependencies]
 # every f64 transcendental of the SGP4 module goes through alice-det-math (bit-identical on all targets)
-alice-det-math = { git = "https://github.com/ext-sakamoro/ALICE-DetMath", rev = "9252dd22b0aae3110687097836808572a5323947", version = "0.5.1", default-features = false }
+alice-det-math = { git = "https://github.com/ext-sakamoro/ALICE-DetMath", rev = "6384856c8b00f1615e1cd6b5c74d88036c1a8706", version = "0.5.2", default-features = false }
 # the Sun and the Moon of the force model (ERFA epv00 / moon98) and the GCRS to CIRS matrix
-alice-ephemeris = { git = "https://github.com/ext-sakamoro/ALICE-Ephemeris", rev = "4d5a13ffe4923ce271f1598eb7f24f148d2e4f8f", version = "0.1.0" }
+alice-ephemeris = { git = "https://github.com/ext-sakamoro/ALICE-Ephemeris", rev = "6fb2014417b4eaa6fb0824d12b3a5e6565913ef3", version = "0.1.0" }
+# the v2 law identifier and law reference the Laws are named by (src/law.rs)
+alice-zip = { git = "https://github.com/ext-sakamoro/ALICE-Zip", rev = "3d75fcf316684df07195f2edabc64c5921f2cf83", version = "0.11.0", default-features = false }
 
 [dev-dependencies]
 # without the default `fork` and `timeout` features (rusty-fork and wait-timeout do
