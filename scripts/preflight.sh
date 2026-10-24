@@ -6,7 +6,7 @@
 # Run `--quick` before every push.
 #
 # usage: scripts/preflight.sh [--quick]   (--quick skips the test / bench suites)
-# generator rev fd42953c41f24e7bf3d7a247f664f39c6330c79d
+# generator rev 14ebd13527e9101cc767d6df5bc879451611b5f5
 set -euo pipefail
 cd "$(dirname "$0")/.."
 # --- heavy slot (begin) ---
@@ -247,7 +247,7 @@ step() { printf '\n\033[1;34m== %s\033[0m\n' "$*"; }
 # touching the crate roots invalidates only this repo's fingerprints.
 relint() { git ls-files | grep -E '(^|/)src/(lib|main)\.rs$' | xargs -r touch; }
 need() { command -v "$1" >/dev/null 2>&1 || { echo "missing tool: $1 ($2)" >&2; exit 1; }; }
-has_toolchain() { rustup toolchain list | grep -q "^$1"; }
+has_toolchain() { grep -q "^$1" <<<"$(rustup toolchain list)"; }
 
 need actionlint "brew install actionlint"
 
@@ -268,13 +268,16 @@ relint
 step "ci.yml / actionlint: actionlint"
 actionlint .github/workflows/*.yml
 
+step "ci.yml / test: Law references (independent standard-library Python)"
+( export CARGO_TERM_COLOR="always" MIN_PASSED="420"; python3 scripts/law_ref_check.py --check )
+
 if [[ $quick -eq 1 ]]; then
   echo; echo "preflight --quick OK (test / bench suites skipped)"; exit 0
 fi
 
 step "ci.yml / test: Test (lib, integration, doctests)"
 (
-  export CARGO_TERM_COLOR="always" MIN_PASSED="395"
+  export CARGO_TERM_COLOR="always" MIN_PASSED="420"
   # the default shell has no pipefail: without it cargo's exit status is lost in the pipe
   set -o pipefail
   log="$(mktemp)"

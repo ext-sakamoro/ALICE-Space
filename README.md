@@ -17,7 +17,7 @@ Deep-space communication, autonomous trajectory control, and model-differential 
 - FNV-1a deterministic content hashing on all output types
 - CCSDS OMM (Orbit Mean-Elements Message) reader for SGP4 element sets in KVN, NDM XML, and CelesTrak's GP JSON / CSV, giving the same SGP4 input as the TLE of the same element set
 - CCSDS OEM / OPM (Orbit Ephemeris / Parameter Message, KVN) reader with the interpolation the message names, and Lagrange / Hermite interpolation shared with SP3 precise orbits (`Sp3File::interpolate`)
-- One dependency: `alice-det-math`. Every module evaluates `sqrt`, the trigonometric, exponential and power functions and `max` / `min` through it and never fuses a multiply and an add (enforced over the whole crate by `clippy.toml`'s disallowed methods in CI), so no result depends on the platform's math library; SGP4's output bits are also pinned by a golden on Linux, macOS, Windows and wasm32
+- Dependencies: `alice-det-math`, `alice-ephemeris` (the Sun and the Moon) and `alice-zip` (the v2 law identifier and law reference). Every module evaluates `sqrt`, the trigonometric, exponential and power functions and `max` / `min` through it and never fuses a multiply and an add (enforced over the whole crate by `clippy.toml`'s disallowed methods in CI), so no result depends on the platform's math library; SGP4's output bits are also pinned by a golden on Linux, macOS, Windows and wasm32
 
 ## Module Overview
 
@@ -31,7 +31,7 @@ Deep-space communication, autonomous trajectory control, and model-differential 
 | `interp` | `lagrange`, `hermite`, `InterpError` | Lagrange and Hermite interpolation of tabulated trajectories (centred window, relative times) |
 | `omm` | `Omm`, `OmmError`, `parse_kvn`, `parse_xml`, `parse_json`, `parse_csv` | CCSDS 502.0-B-3 OMM element sets for SGP4 (KVN / XML / CelesTrak JSON and CSV) |
 | `sgp4` | `Sgp4`, `MeanElements`, `TemeState`, `GravityModel`, `OpsMode` | SGP4 / SDP4 analytical propagation of TLE mean elements (TEME km, km/s) |
-| `law` | `Law`, `SGP4_AFSPC_WGS72`, `ODM_INTERP_LAGRANGE`, `ODM_INTERP_HERMITE`, `ECLIPSE_CONICAL`, `ZONAL_GRAVITY`, `THIRD_BODY`, `SOLAR_RADIATION_PRESSURE`, `DRAG`, `ALL` | Semantics identifiers of the evaluation rules: a stored value carries the identifier of the rule that produced it |
+| `law` | `Law`, `law_ref`, `law_refs`, `reference_grid`, `SGP4_AFSPC_WGS72`, `ODM_INTERP_LAGRANGE`, `ODM_INTERP_HERMITE`, `ECLIPSE_CONICAL`, `ZONAL_GRAVITY`, `THIRD_BODY`, `SOLAR_RADIATION_PRESSURE`, `DRAG`, `ALL`, `LEGACY_V1_IDS` | The evaluation rules as v2 law references (`alice_zip::law_ref::LawRef`): a stored value carries the v2 law identifier of the rule that produced it, and any crate recomputes that identifier from the reference |
 | `drag` | `atmospheric_drag`, `DragError`, `EARTH_ROTATION_RATE` | Atmospheric drag relative to an atmosphere co-rotating with the Earth, with the caller's density |
 | `srp` | `solar_radiation_pressure`, `Occulter`, `SrpError` | Solar radiation pressure (cannonball, nominal irradiance 1361 W/m²) scaled by the visible fraction of the Sun from the conical shadows of the occulting bodies |
 | `eclipse` | `conical_illumination`, `earth_illumination`, `Eclipse`, `Illumination` | Conical umbra / penumbra / annular eclipse of the Sun by a spherical body from positions, with the visible fraction of the disk |
