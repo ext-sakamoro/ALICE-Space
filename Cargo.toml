@@ -2,7 +2,7 @@
 name = "alice-space"
 version = "0.8.0"
 edition = "2021"
-authors = ["Moroya Sakamoto <sakamoro@alicelaw.net>"]
+authors = ["Moroya Sakamoto"]
 description = "ALICE-Space — Deep-space communication, autonomous trajectory control, GNSS foundation (WGS-84 geodetic, TLE parser, DOP)"
 license = "LicenseRef-Proprietary"
 publish = false

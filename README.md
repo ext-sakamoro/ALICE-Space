@@ -169,4 +169,4 @@ This license applies from version 0.8.0. Versions released before it (0.7.0 and
 earlier) remain available under the license they were released with
 (`AGPL-3.0-only OR LicenseRef-Commercial`).
 
-Licence enquiries: <contact@extoria.co.jp>
+Enquiries: https://extoria.co.jp/
