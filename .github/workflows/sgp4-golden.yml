@@ -12,21 +12,6 @@ on:
   # job decides instead, from everything the push brings against main.
   push:
     branches: [main, 'ci/**']
-  pull_request:
-    branches: [main]
-    paths:
-      - src/**
-      - tests/law_ids.rs
-      - src/sgp4.rs
-      - src/tle.rs
-      - tests/sgp4_vallado.rs
-      - tests/tle_assumed_decimal.rs
-      - tests/data/sgp4/**
-      - Cargo.toml
-      - rust-toolchain.toml
-      - src/lib.rs
-      - .gitattributes
-      - .github/workflows/sgp4-golden.yml
   workflow_dispatch:
 
 env:
@@ -75,7 +60,7 @@ jobs:
           files="$(git diff --name-only "${base}" HEAD)"
           printf 'changed against %s:\n%s\n' "${base}" "${files}"
           # every Law's digest moves with any src/ file (tests/law_ids.rs), the SGP4 golden with its own
-          pattern='^(src/|tests/law_ids\.rs|src/sgp4\.rs|src/tle\.rs|src/lib\.rs|tests/sgp4_vallado\.rs|tests/tle_assumed_decimal\.rs|tests/data/sgp4/|Cargo\.toml|rust-toolchain\.toml|\.gitattributes|\.github/workflows/sgp4-golden\.yml)'
+          pattern='^(src/|tests/law_ids\.rs|tests/law_ref_v2\.rs|tests/data/law/|src/sgp4\.rs|src/tle\.rs|src/lib\.rs|tests/sgp4_vallado\.rs|tests/tle_assumed_decimal\.rs|tests/data/sgp4/|Cargo\.toml|rust-toolchain\.toml|\.gitattributes|\.github/workflows/sgp4-golden\.yml)'
           if printf '%s\n' "${files}" | grep -Eq "${pattern}"; then
             echo "run=true" >> "${GITHUB_OUTPUT}"
           else
@@ -136,7 +121,7 @@ jobs:
             target_args=(--target "${{ matrix.target }}")
           fi
           log="$(mktemp)"
-          cargo test --release "${target_args[@]}" --test sgp4_vallado --test tle_assumed_decimal --test law_ids 2>&1 | tee "${log}"
+          cargo test --release "${target_args[@]}" --test sgp4_vallado --test tle_assumed_decimal --test law_ids --test law_ref_v2 2>&1 | tee "${log}"
           # the walk's bit golden, the Vallado oracle, the decimal oracle and the Laws'
           # digests must each have run and passed: a filter that matched nothing would
           # report "0 passed" (the Law digests are the outputs' bits, so they must agree on

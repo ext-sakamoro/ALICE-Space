@@ -5,6 +5,7 @@ All notable changes to ALICE-Space will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- `law::law_ref` / `law::law_refs` / `law::reference_grid` / `law::ReferenceGrid` / `law::BASIC_OPS_SEMANTICS_ID` / `law::LEGACY_V1_IDS`: 各 Law を `alice_zip::law_ref::LawRef` (v2) として書き出す 試験 `tests/law_ref_v2.rs`、別実装 `scripts/law_ref_check.py`
 - `forces::ForceModel`: 地球の衛星にかかる力を時刻ごとに合わせる (状態は GCRS、時刻は epoch からの TT 秒) zonal の場と大気抵抗は `alice_ephemeris::frames::c2i06a` の CIRS (z が天の中間極) で評価し、太陽 (ERFA `eraEpv00`) と月 (`eraMoon98`) は `alice_ephemeris::sunmoon` から取って第三体の摂動と輻射圧 (地球と月の円錐影) に渡す `ForceModel::propagate` が RK4 で伝播する 依存に alice-ephemeris 0.1.0 (git rev 4d5a13f) を足した 試験 `tests/forces_oracle.rs`: pyerfa と定義から書いた力で同じ RK4 を回した独立の参照 (LEO 1 周 / GEO 1 日、`scripts/gen_forces_golden.py`) と、丸めの蓄積から導いた上限の内側で一致 (LEO 26 µm、GEO 37 µm)
 - `drag::atmospheric_drag(r, v, rho, cd, area_to_mass, omega)`: 大気抵抗 −½ ρ Cd (A/m) |v_r| v_r (v_r = v − ω × r、z 軸まわりに回る大気に対する速度) 密度は呼び出し側が渡す (密度の model は別) 定数 `EARTH_ROTATION_RATE` (GRS80 / WGS84) 負・非有限の入力は `DragError` Law `DRAG` 試験 `tests/drag_oracle.rs`: SI 単位で書いた式と一致し v_r と逆向き (60 点)、大気と共に回る点は 0、回らない大気、退化入力 手で入れた変異 5 本は全て red
 - `srp::solar_radiation_pressure(sat, sun, occulters, cr, area_to_mass)`: 太陽輻射圧の加速度 ν·(S/c)·Cr·(A/m)·(AU/d)²·d̂ (S = 1361 W/m² は IAU 2015 B3 の公称値) ν は各遮蔽天体 (`Occulter`) の `eclipse::conical_illumination` の見える割合の積 (同時に 2 天体が太陽の一部を覆う配置は幾何として合成しない) 衛星が天体の中・非有限・負の係数・太陽の中心は `SrpError` Law `SOLAR_RADIATION_PRESSURE` (データに円錐影の Law の識別子を含む) 試験 `tests/srp_oracle.rs`: 全照で S/c の式 (1 au・Cr 1・A/m 1 で 4.5398e-6 m/s²)・太陽と逆向き、距離の逆二乗、本影で 0・半影で見える割合倍 (200 点)・2 天体で割合の積 (順序に依らない)、退化入力 手で入れた変異 7 本 (影を掛けない・最初の天体だけ等の配線を含む) は全て red
@@ -22,6 +23,8 @@ All notable changes to ALICE-Space will be documented in this file.
 - CI: `Test (public siblings)` job `cargo test --all-features` を走らせ、cargo の失敗、失敗した試験、通った試験が 346 件未満のどれでも失敗 `ci/**` の push でも走る `scripts/preflight.sh` は生成し直して同じ step を持つ
 
 ### Changed
+- **破壊的変更:** `law`: 各 Law の `semantics_id` を v2 の law id (`alice_zip::law_id::LawIdHasher`、kind は Law の名前) にした semantics は alice-det-math の `SEMANTICS_ID`、補間の 2 本は `law::BASIC_OPS_SEMANTICS_ID` 行は定数 (bits)・rule・依存する Law・固定した入力格子の digest と件数・出力の digest v1 の値は `law::LEGACY_V1_IDS` 旧 → 新: sgp4-afspc-wgs72 `ec426926…` → `353b40dc…` / odm-interp-lagrange `2e049cf3…` → `6e82199c…` / odm-interp-hermite `dbddb1a3…` → `220c6554…` / eclipse-conical `7d91ae6c…` → `44bb4ddc…` / zonal-gravity `3225b4de…` → `8fe6a972…` / third-body-battin `22dba1cb…` → `2da76d1e…` / srp-cannonball-conical `21f54f94…` → `d890f70d…` / drag-corotating `8aa774af…` → `5324b239…`
+- CI: `pull_request` の発火を外した `Law references` の step が `scripts/law_ref_check.py --check` を走らせ、`sgp4-golden.yml` が `tests/law_ref_v2.rs` も各 OS と wasm32 で走らせる
 - 依存: `alice-det-math` を git rev `6384856c` (0.5.2) で、`alice-ephemeris` を rev `6fb20144` で引く `alice-zip` (rev `3d75fcf3`、0.11.0) を足した
 - `sgp4::epoch_days_since_1950`: 1 月 1 日までの日数を Julian date の式でなく整数の日数から作る (結果の bit は同じ、参照と同じ Julian date 経由の丸めは保つ) OMM の epoch も同じ関数を通す
 - Licence: `AGPL-3.0-only OR LicenseRef-Commercial` → `LicenseRef-Proprietary`
