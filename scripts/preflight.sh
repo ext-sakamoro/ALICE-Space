@@ -6,7 +6,7 @@
 # Run `--quick` before every push.
 #
 # usage: scripts/preflight.sh [--quick]   (--quick skips the test / bench suites)
-# generator rev fd42953c41f24e7bf3d7a247f664f39c6330c79d
+# generator rev c84572cedd2730e8932b4a6959c59c2bfb7877ea
 set -euo pipefail
 cd "$(dirname "$0")/.."
 # --- heavy slot (begin) ---
@@ -267,6 +267,13 @@ relint
 
 step "ci.yml / actionlint: actionlint"
 actionlint .github/workflows/*.yml
+
+step "ci.yml / actionlint: Changed paths tests + trigger lint"
+(
+  export CARGO_TERM_COLOR="always"
+  python3 scripts/test_changed_paths.py
+  python3 scripts/changed_paths.py sync
+)
 
 if [[ $quick -eq 1 ]]; then
   echo; echo "preflight --quick OK (test / bench suites skipped)"; exit 0

@@ -9,7 +9,7 @@ on:
   # push has no `paths:` filter: on the first push of a new ci/ branch GitHub
   # evaluated it against the head commit alone, so a branch whose last commit
   # did not touch the SGP4 files skipped this workflow entirely. The `changes`
-  # job decides instead, from everything the push brings against main.
+  # job decides instead (scripts/changed_paths.py, patterns: .github/paths/sgp4-golden.txt)
   push:
     branches: [main, 'ci/**']
   pull_request:
@@ -27,6 +27,8 @@ on:
       - src/lib.rs
       - .gitattributes
       - .github/workflows/sgp4-golden.yml
+      - scripts/changed_paths.py
+      - .github/paths/sgp4-golden.txt
   workflow_dispatch:
 
 env:
@@ -37,50 +39,34 @@ env:
   WASMTIME_PIN: "50.0.0"
 
 jobs:
+  # which files changed: a new or force-pushed branch is compared with merge-base(origin/main),
+  # another push with before..after, a pull request with base...head; schedule and manual
+  # runs always run; any error runs (fail-closed) — scripts/changed_paths.py
   changes:
-    name: SGP4 inputs changed
+    name: Changed paths
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
-      run: ${{ steps.diff.outputs.run }}
+      run: ${{ steps.decide.outputs.run }}
     steps:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - id: diff
-        shell: bash
+      - name: decide
+        id: decide
         env:
           EVENT: ${{ github.event_name }}
-          REF: ${{ github.ref }}
           BEFORE: ${{ github.event.before }}
-        run: |
-          set -euo pipefail
-          # a pull request was already filtered by `paths:`; a manual run always runs
-          if [ "${EVENT}" != push ]; then
-            echo "run=true" >> "${GITHUB_OUTPUT}"
-            exit 0
-          fi
-          # main: the commits of this push; a ci/ branch: everything it changes
-          # against main (a new branch has no usable "before")
-          if [ "${REF}" = refs/heads/main ]; then
-            # an unreachable "before" (a new branch, a rewritten history) gives
-            # no diff to trust: run rather than skip
-            if ! git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
-              echo "run=true" >> "${GITHUB_OUTPUT}"
-              exit 0
-            fi
-            base="${BEFORE}"
-          else
-            base="$(git merge-base origin/main HEAD)"
-          fi
-          files="$(git diff --name-only "${base}" HEAD)"
-          printf 'changed against %s:\n%s\n' "${base}" "${files}"
-          # every Law's digest moves with any src/ file (tests/law_ids.rs), the SGP4 golden with its own
-          pattern='^(src/|tests/law_ids\.rs|src/sgp4\.rs|src/tle\.rs|src/lib\.rs|tests/sgp4_vallado\.rs|tests/tle_assumed_decimal\.rs|tests/data/sgp4/|Cargo\.toml|rust-toolchain\.toml|\.gitattributes|\.github/workflows/sgp4-golden\.yml)'
-          if printf '%s\n' "${files}" | grep -Eq "${pattern}"; then
-            echo "run=true" >> "${GITHUB_OUTPUT}"
-          else
-            echo "run=false" >> "${GITHUB_OUTPUT}"
-          fi
+          AFTER: ${{ github.event.after || github.sha }}
+          CREATED: ${{ github.event.created }}
+          FORCED: ${{ github.event.forced }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: >-
+          python3 scripts/changed_paths.py decide --event "$EVENT"
+          --before "$BEFORE" --after "$AFTER" --created "$CREATED" --forced "$FORCED"
+          --base "$PR_BASE" --head "$PR_HEAD"
+          --patterns-file .github/paths/sgp4-golden.txt
 
   golden:
     name: SGP4 golden (${{ matrix.name }})
@@ -157,3 +143,17 @@ jobs:
             echo "::error::expected at least 9 passed and 0 failed"
             exit 1
           fi
+
+  # red when the changes job said run and a job was skipped, cancelled or failed
+  gate:
+    name: Gate
+    if: always()
+    needs: [changes, golden]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - name: gate
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: python3 scripts/changed_paths.py gate --needs-json "$NEEDS"
