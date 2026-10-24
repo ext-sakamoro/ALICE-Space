@@ -1,0 +1,18 @@
+# the paths that run .github/workflows/sgp4-golden.yml (scripts/changed_paths.py decide)
+# on.pull_request.paths of the workflow must list the same patterns in the same order
+# (scripts/changed_paths.py sync)
+# every Law's digest moves with any src/ file (tests/law_ids.rs), the SGP4 golden with its own
+src/**
+tests/law_ids.rs
+src/sgp4.rs
+src/tle.rs
+tests/sgp4_vallado.rs
+tests/tle_assumed_decimal.rs
+tests/data/sgp4/**
+Cargo.toml
+rust-toolchain.toml
+src/lib.rs
+.gitattributes
+.github/workflows/sgp4-golden.yml
+scripts/changed_paths.py
+.github/paths/sgp4-golden.txt
