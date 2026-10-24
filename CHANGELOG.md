@@ -28,6 +28,7 @@ All notable changes to ALICE-Space will be documented in this file.
 - CI: `.github/preflight-exact` を置いた `scripts/preflight.sh` が生成器の出力 (見出しの `generator rev` の版) と byte で一致しなければ送る前の確認が通らない
 - 設定 file の comment を中身の説明だけにし、.gitignore を project の build 出力だけにした
 - ライセンス全文を公式の AGPL v3 に置き換え
+- `.github/dependabot.yml`、`CONTRIBUTING.md` を削除した (pull request と外部からの貢献を受けないため、依存の勧告は audit / deny の job が見る)
 - TRADEMARK_NOTICE が指す licence の file を LICENSE-* の file にした
 - **Behavior change:** `autonomy` / `constellation` / `dop` / `geodetic` / `hopfield` / `ionosphere` / `link_budget` / `multipath` / `nequick` / `orbit` / `propagator` / `troposphere` / `tle` (平均運動からの長半径): platform の `sqrt`・三角・指数・対数・冪と `mul_add` を alice-det-math と積と和を分けた演算に置き換えた 結果の最後の bit が変わりうる (`sgp4` と `eclipse` は変わらない) 識別子は動かさない: この crate に Law・semantics id は無く、出力の bit を固定する golden は `sgp4` の walk (`tests/sgp4_vallado.rs` の `WALK_BITS_SHA256`、不変) だけ ALICE の各 repo の main でこの crate を引くのは ALICE-Eco-System の `bridge_space` / `bridge_space_cross` だけで、`CommLink` / `ControlDecision` / `MissionEvent` / `ModelDifferential` の値や hash を固定する assert は無い (2026-10-23、`git grep` で `SEMANTICS_ID` / `law_id` / 16 桁以上の hex / `alice_space` を全 repo の main に対して確認)
 - **Behavior change:** `interp::lagrange` / `interp::hermite`: 節点の数が奇数の窓を時刻に最も近い節点に中心を合わせる (それまでは時刻の前の節点に中心があり、後ろの節点の方が近い時は窓が 1 つ前にずれていた) 偶数の窓は変わらない 偶数次の Lagrange と奇数個の節点の Hermite で値が変わる
