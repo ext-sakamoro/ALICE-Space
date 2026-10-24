@@ -23,7 +23,7 @@ struct Spec {
 }
 
 fn unhex(s: &str) -> Vec<u8> {
-    assert!(s.len() % 2 == 0, "odd hex length: {s}");
+    assert!(s.len().is_multiple_of(2), "odd hex length: {s}");
     (0..s.len())
         .step_by(2)
         .map(|i| u8::from_str_radix(&s[i..i + 2], 16).expect("hex"))
@@ -101,7 +101,12 @@ fn the_independent_reference_and_alice_zip_agree() {
         let r = reference(s);
         assert_eq!(r.law_id(), &s.id, "{}: law id", s.kind);
         assert_eq!(r.to_bytes(), s.bytes, "{}: bytes", s.kind);
-        assert_eq!(LawRef::from_bytes(&s.bytes).expect("reads back"), r, "{}", s.kind);
+        assert_eq!(
+            LawRef::from_bytes(&s.bytes).expect("reads back"),
+            r,
+            "{}",
+            s.kind
+        );
     }
 }
 
@@ -112,7 +117,11 @@ fn the_laws_carry_their_v2_identifiers() {
     assert_eq!(specs.len(), law::ALL.len());
     for (l, s) in law::ALL.iter().zip(&specs) {
         assert_eq!(l.name, s.kind);
-        assert_eq!(l.semantics_id, s.id, "{}: semantics_id is not the v2 law id", l.name);
+        assert_eq!(
+            l.semantics_id, s.id,
+            "{}: semantics_id is not the v2 law id",
+            l.name
+        );
     }
 }
 
@@ -195,5 +204,37 @@ fn the_semantics_of_each_law() {
             alice_det_math::SEMANTICS_ID
         };
         assert_eq!(s.semantics, want, "{}", s.kind);
+    }
+}
+
+/// The exporter gives each Law's reference: the bytes of the file, whose identifier is the Law's
+/// `semantics_id`, and nothing for a Law that is not one of the crate's.
+#[test]
+fn the_exporter_gives_the_references_of_the_file() {
+    let specs = specs();
+    let refs = law::law_refs();
+    assert_eq!(refs.len(), specs.len());
+    for ((r, s), l) in refs.iter().zip(&specs).zip(law::ALL.iter()) {
+        assert_eq!(r.to_bytes(), s.bytes, "{}: bytes", l.name);
+        assert_eq!(r.law_id(), &l.semantics_id, "{}: identifier", l.name);
+        assert_eq!(law::law_ref(l).as_ref(), Some(r), "{}", l.name);
+    }
+    let stranger = law::Law {
+        name: "alice-space/not-a-law",
+        semantics_id: [7; 32],
+    };
+    assert!(law::law_ref(&stranger).is_none());
+    assert!(law::reference_grid(&stranger).is_none());
+}
+
+/// The semantics the exporter names is the constant of src/law.rs.
+#[test]
+fn the_basic_ops_semantics_is_the_named_constant() {
+    use sha2::{Digest, Sha256};
+    let want: [u8; 32] = Sha256::digest(b"alice-space/semantics/ieee754-basic-ops/v1").into();
+    assert_eq!(law::BASIC_OPS_SEMANTICS_ID, want);
+    for l in [law::ODM_INTERP_LAGRANGE, law::ODM_INTERP_HERMITE] {
+        let r = law::law_ref(&l).expect("a Law of ALL");
+        assert_eq!(r.semantics_id(), &law::BASIC_OPS_SEMANTICS_ID, "{}", l.name);
     }
 }

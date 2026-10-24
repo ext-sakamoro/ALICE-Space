@@ -1,6 +1,6 @@
-//! The Laws' semantics identifiers (src/law.rs).
+//! The Laws' reference grids and their identifiers before v2 (src/law.rs).
 //!
-//! Each identifier is the SHA-256 of the Law's name, its data, the
+//! Each v1 identifier ([`law::LEGACY_V1_IDS`]) is the SHA-256 of the Law's name, its data, the
 //! alice-det-math `SEMANTICS_ID` where it evaluates `f64` transcendentals, and
 //! the digest of its outputs over a **frozen reference grid**. The rule: the
 //! identifier moves if and only if the Law's inputs or its outputs on the
@@ -676,8 +676,9 @@ fn reference_digests() {
     );
 }
 
+/// previous: the v1 formula gives back every identifier of `law::LEGACY_V1_IDS` (ALICE-Law G9).
 #[test]
-fn semantics_ids() {
+fn legacy_v1_identifiers_are_reproduced() {
     // WGS-72 (mu, Earth radius, J2, J3, J4) as the propagator uses them
     let mut sgp4 = Vec::new();
     bits(
@@ -712,7 +713,14 @@ fn semantics_ids() {
             srp::AU_KM,
         ],
     );
-    srp_data.extend(law::ECLIPSE_CONICAL_ID);
+    // the v1 identifier of the shadow Law, as the v1 formula hashed it
+    srp_data.extend(
+        law::LEGACY_V1_IDS
+            .iter()
+            .find(|(name, _)| *name == law::ECLIPSE_CONICAL.name)
+            .map(|(_, id)| *id)
+            .expect("the eclipse Law has a v1 identifier"),
+    );
     srp_data.extend(alice_det_math::SEMANTICS_ID);
     let mut drag_data = b"a = -1/2 rho Cd (A/m) |v - w x r| (v - w x r), km and km/s".to_vec();
     drag_data.extend(alice_det_math::SEMANTICS_ID);
@@ -764,14 +772,83 @@ fn semantics_ids() {
     let mut bad = Vec::new();
     for (l, data, grid, reference) in &cases {
         let id = law_id(l, data, *grid, reference);
-        if id != l.semantics_id {
+        let legacy = law::LEGACY_V1_IDS
+            .iter()
+            .find(|(name, _)| *name == l.name)
+            .map(|(_, id)| *id);
+        if Some(id) != legacy {
             let bytes: Vec<String> = id.iter().map(|b| format!("0x{b:02x}")).collect();
             bad.push(format!("{}: [{}]", l.name, bytes.join(", ")));
         }
     }
-    assert!(bad.is_empty(), "semantics ids changed:\n{}", bad.join("\n"));
+    assert!(
+        bad.is_empty(),
+        "v1 identifiers changed:\n{}",
+        bad.join("\n")
+    );
+    assert_eq!(cases.len(), law::LEGACY_V1_IDS.len());
     let mut ids: Vec<[u8; 32]> = law::ALL.iter().map(|l| l.semantics_id).collect();
+    ids.extend(law::LEGACY_V1_IDS.iter().map(|(_, id)| *id));
     ids.sort_unstable();
     ids.dedup();
-    assert_eq!(ids.len(), law::ALL.len(), "two Laws share an identifier");
+    assert_eq!(ids.len(), 2 * law::ALL.len(), "two identifiers coincide");
+}
+
+fn unhex32(s: &str) -> [u8; 32] {
+    let v: Vec<u8> = (0..s.len())
+        .step_by(2)
+        .map(|i| u8::from_str_radix(&s[i..i + 2], 16).expect("hex"))
+        .collect();
+    v.try_into().expect("32 bytes")
+}
+
+/// The reference grids the Laws' references carry (`law::reference_grid`) are the ones this
+/// file recomputes from the code.
+#[test]
+fn the_references_carry_these_grids() {
+    let cases = [
+        (
+            law::SGP4_AFSPC_WGS72,
+            REFERENCE_SGP4_INPUTS,
+            REFERENCE_SGP4_AFSPC_WGS72,
+        ),
+        (
+            law::ODM_INTERP_LAGRANGE,
+            REFERENCE_INTERP_INPUTS,
+            REFERENCE_ODM_INTERP_LAGRANGE,
+        ),
+        (
+            law::ODM_INTERP_HERMITE,
+            REFERENCE_INTERP_INPUTS,
+            REFERENCE_ODM_INTERP_HERMITE,
+        ),
+        (
+            law::ECLIPSE_CONICAL,
+            REFERENCE_ECLIPSE_INPUTS,
+            REFERENCE_ECLIPSE_CONICAL,
+        ),
+        (
+            law::ZONAL_GRAVITY,
+            REFERENCE_ZONAL_INPUTS,
+            REFERENCE_ZONAL_GRAVITY,
+        ),
+        (
+            law::THIRD_BODY,
+            REFERENCE_THIRD_INPUTS,
+            REFERENCE_THIRD_BODY,
+        ),
+        (
+            law::SOLAR_RADIATION_PRESSURE,
+            REFERENCE_SRP_INPUTS,
+            REFERENCE_SOLAR_RADIATION_PRESSURE,
+        ),
+        (law::DRAG, REFERENCE_DRAG_INPUTS, REFERENCE_DRAG),
+    ];
+    assert_eq!(cases.len(), law::ALL.len());
+    for (l, (inputs, count), outputs) in cases {
+        let g = law::reference_grid(&l).expect("a Law of ALL");
+        assert_eq!(g.inputs, unhex32(inputs), "{}: inputs", l.name);
+        assert_eq!(g.input_count, count as u64, "{}: count", l.name);
+        assert_eq!(g.outputs, unhex32(outputs), "{}: outputs", l.name);
+    }
 }

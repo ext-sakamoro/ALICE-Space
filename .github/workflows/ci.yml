@@ -3,8 +3,6 @@ name: CI
 on:
   push:
     branches: [main, 'ci/**']
-  pull_request:
-    branches: [main]
 
 env:
   CARGO_TERM_COLOR: always
@@ -81,3 +79,6 @@ jobs:
             echo "::error::${passed} tests passed, fewer than ${MIN_PASSED}"
             exit 1
           fi
+      - name: Law references (independent standard-library Python)
+        working-directory: ALICE-Space
+        run: python3 scripts/law_ref_check.py --check
