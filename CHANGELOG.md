@@ -23,7 +23,7 @@ All notable changes to ALICE-Space will be documented in this file.
 
 ### Changed
 - `sgp4::epoch_days_since_1950`: 1 月 1 日までの日数を Julian date の式でなく整数の日数から作る (結果の bit は同じ、参照と同じ Julian date 経由の丸めは保つ) OMM の epoch も同じ関数を通す
-- **License: `AGPL-3.0-only OR LicenseRef-Commercial` → `LicenseRef-Proprietary`** (all rights reserved、`publish = false`、版を 0.8.0 に上げた) 0.7.0 までに公開した版は公開時の license (`AGPL-3.0-only OR LicenseRef-Commercial`) のまま `LICENSE-AGPL` と `LICENSE-COMMERCIAL.md` を外し `LICENSE` を置いた README の license の節と TRADEMARK_NOTICE の参照を合わせた
+- Licence: `AGPL-3.0-only OR LicenseRef-Commercial` → `LicenseRef-Proprietary`
 - License: `AGPL-3.0-only` → `AGPL-3.0-only OR LicenseRef-Commercial` (2026-09-27)
 - CI: `.github/preflight-exact` を置いた `scripts/preflight.sh` が生成器の出力 (見出しの `generator rev` の版) と byte で一致しなければ送る前の確認が通らない
 - 設定 file の comment を中身の説明だけにし、.gitignore を project の build 出力だけにした
