@@ -39,6 +39,7 @@ All notable changes to ALICE-Space will be documented in this file.
 - `eclipse::conical_illumination`: 半影の縁の近くで見える割合が最大 6e-6 ずれ、1 を超えることがあった (扇形から弦の三角形を引く式の桁落ち) 2 つの弓形をそれぞれ求め、見える部分を同じ側の弓形から作る
 - `ccsds_odm`: 秒 60 (`23:59:60`) を OEM の行・`START_TIME` / `STOP_TIME` / `USEABLE_*`・OPM の `EPOCH`・`OemSegment::state_at` の問い合わせのどこでも受け付けない UTC では非対応 (`Unsupported`)、TAI / TT / GPS など他の時刻系では存在しない秒として `Invalid` それまでは窓の時刻と問い合わせの 23:59:60 を翌日の 00:00:00 として読んでいた
 - `tle::parse`: BSTAR と平均運動の 2 階微分 (仮定小数の field、例 ` -22483-4`) を `仮数 × 10f64.powi(指数)` でなく小数の文字列 (`-0.22483e-4`) を 1 回 parse して作る `powi` の精度は規定されておらず、Vallado の検証 TLE と CelesTrak の 2 組の 70 field のうち 6 field が正しく丸めた値から 1 ulp ずれていた 試験 `tests/tle_assumed_decimal.rs` (70 field 全てが正しく丸めた値と bit 一致)
+- `gravity::third_body`: 2 乗が overflow する位置 (|r| ≈ 1e160 以上、±∞) と payload を持つ NaN の μ でも正準の NaN を返す (それまでは ∞/∞ の NaN が x86 で符号 bit を立て、ARM と bit が違った) `law::THIRD_BODY` の識別子は変わらない
 
 ## [0.1.0] - 2026-02-23
 

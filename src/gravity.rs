@@ -95,7 +95,8 @@ impl ZonalGravity<'_> {
 /// cancellation: with q = r·(r − 2s)/|s|², |r − s|² = |s|²(1 + q) and
 /// (1 + q)^{3/2} − 1 = f(q) = q (3 + 3q + q²) / (1 + (1 + q)^{3/2}), so
 /// a = −μ/|r − s|³ (r + f(q) s). NaN when the body is at the centre or at the
-/// satellite.
+/// satellite, or when a squared distance overflows; every NaN it returns is
+/// the canonical `f64::NAN`.
 #[must_use]
 pub fn third_body(r: [f64; 3], s: [f64; 3], mu: f64) -> [f64; 3] {
     let ss = s[0] * s[0] + s[1] * s[1] + s[2] * s[2];
@@ -103,19 +104,22 @@ pub fn third_body(r: [f64; 3], s: [f64; 3], mu: f64) -> [f64; 3] {
     let q = (r[0] * r2s[0] + r[1] * r2s[1] + r[2] * r2s[2]) / ss;
     let opq = 1.0 + q;
     let d2 = ss * opq;
-    // the body at the satellite (d2 = 0), at the centre (q = ∞, d2 = 0·∞) or a
-    // NaN input: the canonical NaN, explicitly. The arithmetic would give NaN
-    // too, but its bits differ by target (x86 sets the sign bit, ARM does
-    // not), and the Law's identifier hashes the output bits
-    if d2.is_nan() || d2 <= 0.0 {
+    // the body at the satellite (d2 = 0), at the centre (q = ∞, d2 = 0·∞), a
+    // NaN input, or a position whose squares overflow (d2 = ∞, then f is ∞/∞):
+    // the canonical NaN, explicitly. The arithmetic would give NaN too, but
+    // its bits differ by target (x86 sets the sign bit, ARM does not), and the
+    // Law's identifier hashes the output bits
+    if !d2.is_finite() || d2 <= 0.0 {
         return [f64::NAN; 3];
     }
     let opq32 = opq * sqrt64(opq);
     let f = q * (3.0 + q * (3.0 + q)) / (1.0 + opq32);
     let k = -mu / (d2 * sqrt64(d2));
+    // a NaN left in the result (a NaN μ, with its own payload) is the canonical one too
     [
         k * (r[0] + f * s[0]),
         k * (r[1] + f * s[1]),
         k * (r[2] + f * s[2]),
     ]
+    .map(|v| if v.is_nan() { f64::NAN } else { v })
 }
