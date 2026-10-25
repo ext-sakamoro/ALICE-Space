@@ -13,7 +13,7 @@ keywords = ["space", "orbit", "gnss", "geodetic", "tle"]
 # every f64 transcendental of the SGP4 module goes through alice-det-math (bit-identical on all targets)
 alice-det-math = { git = "https://github.com/ext-sakamoro/ALICE-DetMath", rev = "9252dd22b0aae3110687097836808572a5323947", version = "0.5.1", default-features = false }
 # the Sun and the Moon of the force model (ERFA epv00 / moon98) and the GCRS to CIRS matrix
-alice-ephemeris = { git = "https://github.com/ext-sakamoro/ALICE-Ephemeris", rev = "4d5a13ffe4923ce271f1598eb7f24f148d2e4f8f", version = "0.1.0" }
+alice-ephemeris = { git = "https://github.com/ext-sakamoro/ALICE-Ephemeris", rev = "0c79f790d7bed93b28881f7cdcdf64e96e214d46", version = "0.1.0" }
 
 [dev-dependencies]
 # without the default `fork` and `timeout` features (rusty-fork and wait-timeout do
