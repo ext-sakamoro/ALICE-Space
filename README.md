@@ -161,12 +161,6 @@ strip = true
 
 ## License
 
-`LicenseRef-Proprietary` — all rights reserved, see [LICENSE](LICENSE). The source is
-visible for reference only; using, copying, modifying or distributing it needs prior
-written permission.
+`LicenseRef-Proprietary`. The text is [LICENSE-Proprietary](LICENSE-Proprietary).
 
-This license applies from version 0.8.0. Versions released before it (0.7.0 and
-earlier) remain available under the license they were released with
-(`AGPL-3.0-only OR LicenseRef-Commercial`).
-
-Licence enquiries: <contact@extoria.co.jp>
+Enquiries: https://extoria.co.jp/
