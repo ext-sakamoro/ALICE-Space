@@ -23,11 +23,9 @@ All notable changes to ALICE-Space will be documented in this file.
 
 ### Changed
 - `sgp4::epoch_days_since_1950`: 1 月 1 日までの日数を Julian date の式でなく整数の日数から作る (結果の bit は同じ、参照と同じ Julian date 経由の丸めは保つ) OMM の epoch も同じ関数を通す
-- **License: `AGPL-3.0-only OR LicenseRef-Commercial` → `LicenseRef-Proprietary`** (all rights reserved、`publish = false`、版を 0.8.0 に上げた) 0.7.0 までに公開した版は公開時の license (`AGPL-3.0-only OR LicenseRef-Commercial`) のまま `LICENSE-AGPL` と `LICENSE-COMMERCIAL.md` を外し `LICENSE` を置いた README の license の節と TRADEMARK_NOTICE の参照を合わせた
-- **License: `AGPL-3.0-only` → `AGPL-3.0-only OR LicenseRef-Commercial` (dual-licensed、2026-09-27)** AGPL 側の条件は変更なし (既存 AGPL 利用者への影響ゼロ)、商用という選択肢が追加されただけ SPDX が AGPL 単独だと cargo-deny / FOSSA / SBOM に「商用オプションなし」と見えるため宣言を dual に 変更点: SPDX / `LICENSE` → `LICENSE-AGPL` / `LICENSE-COMMERCIAL.md` (商用トリガー 6 条件 = クローズド製品・商用 SaaS・エッジ / ファームウェア配布・plugin 再配布・プラットフォーム NDA・保証、社内利用は AGPL 側で無償と明記) / README の選択肢表 商用窓口は法人 `contact@extoria.co.jp`
+- **License: → `LicenseRef-Proprietary`** (all rights reserved、`publish = false`、版を 0.8.0 に上げた) 公開済みの版は公開した時の条件のまま 本体の license の text は `LICENSE-Proprietary` (以前の license の file は外した)、README の license の節と TRADEMARK_NOTICE の参照を合わせた
 - CI: `.github/preflight-exact` を置いた `scripts/preflight.sh` が生成器の出力 (見出しの `generator rev` の版) と byte で一致しなければ送る前の確認が通らない
 - 設定 file の comment を中身の説明だけにし、.gitignore を project の build 出力だけにした
-- ライセンス全文を公式の AGPL v3 に置き換え
 - TRADEMARK_NOTICE が指す licence の file を LICENSE-* の file にした
 - **Behavior change:** `autonomy` / `constellation` / `dop` / `geodetic` / `hopfield` / `ionosphere` / `link_budget` / `multipath` / `nequick` / `orbit` / `propagator` / `troposphere` / `tle` (平均運動からの長半径): platform の `sqrt`・三角・指数・対数・冪と `mul_add` を alice-det-math と積と和を分けた演算に置き換えた 結果の最後の bit が変わりうる (`sgp4` と `eclipse` は変わらない) 識別子は動かさない: この crate に Law・semantics id は無く、出力の bit を固定する golden は `sgp4` の walk (`tests/sgp4_vallado.rs` の `WALK_BITS_SHA256`、不変) だけ ALICE の各 repo の main でこの crate を引くのは ALICE-Eco-System の `bridge_space` / `bridge_space_cross` だけで、`CommLink` / `ControlDecision` / `MissionEvent` / `ModelDifferential` の値や hash を固定する assert は無い (2026-10-23、`git grep` で `SEMANTICS_ID` / `law_id` / 16 桁以上の hex / `alice_space` を全 repo の main に対して確認)
 - **Behavior change:** `interp::lagrange` / `interp::hermite`: 節点の数が奇数の窓を時刻に最も近い節点に中心を合わせる (それまでは時刻の前の節点に中心があり、後ろの節点の方が近い時は窓が 1 つ前にずれていた) 偶数の窓は変わらない 偶数次の Lagrange と奇数個の節点の Hermite で値が変わる
