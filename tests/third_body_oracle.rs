@@ -97,3 +97,34 @@ fn degenerate_positions() {
         .iter()
         .all(|v| v.to_bits() == f64::NAN.to_bits()));
 }
+
+/// A position whose squares overflow (|r|² = ∞, so 1 + q and |r − s|² are ∞ and
+/// f(q) is ∞/∞) or an infinite one gives the canonical NaN too: the NaN made
+/// by ∞/∞ has the sign bit set on x86 and not on ARM, so without the explicit
+/// value the output bits differ by target
+#[test]
+fn overflowing_positions_give_the_canonical_nan() {
+    let s = [149_597_870.7, 0.0, 0.0];
+    let mu = 1.327_124_400_412_794e11;
+    for r in [
+        [1e160, 0.0, 0.0],
+        [0.0, 1e200, 0.0],
+        [f64::INFINITY, 0.0, 0.0],
+        [0.0, 0.0, f64::NEG_INFINITY],
+    ] {
+        let a = third_body(r, s, mu);
+        assert!(
+            a.iter().all(|v| v.to_bits() == f64::NAN.to_bits()),
+            "{r:?}: {:?}",
+            a.map(|v| format!("{:#018x}", v.to_bits()))
+        );
+    }
+    // a NaN μ with a payload of its own: the result is the canonical NaN, not that payload
+    let payload = f64::from_bits(0x7ff8_0000_0000_0001);
+    let a = third_body([7000.0, 0.0, 0.0], s, payload);
+    assert!(
+        a.iter().all(|v| v.to_bits() == f64::NAN.to_bits()),
+        "{:?}",
+        a.map(|v| format!("{:#018x}", v.to_bits()))
+    );
+}
