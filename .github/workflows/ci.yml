@@ -48,13 +48,57 @@ jobs:
           fail_level: error
           reporter: github-check
 
+  nan-bits-arm64:
+    name: Canonical NaN bits (macOS arm64)
+    # the test job runs on x86_64, where an arithmetic NaN has the sign bit set; this leg
+    # runs the canonical-NaN oracles where it does not, so the bits are pinned on both
+    runs-on: macos-latest
+    env:
+      MIN_PASSED: "3"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - name: third_body oracles (arm64)
+        run: |
+          set -o pipefail
+          log="$(mktemp)"
+          cargo test --all-features --test third_body_oracle 2>&1 | tee "${log}"
+          passed=$(grep -E '^test result: ' "${log}" | awk '{s += $4} END {print s + 0}')
+          echo "passed: ${passed} (minimum ${MIN_PASSED})"
+          if grep -E '^test result: ' "${log}" | grep -vE '^test result: ok\. ' >/dev/null; then
+            echo "::error::a third_body oracle failed"
+            exit 1
+          fi
+          if [ "${passed}" -lt "${MIN_PASSED}" ]; then
+            echo "::error::${passed} tests passed, fewer than ${MIN_PASSED}"
+            exit 1
+          fi
+
+  ffi-header:
+    name: FFI header (cbindgen, no drift)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install cbindgen 0.29.4
+        run: cargo install cbindgen --version 0.29.4 --locked
+      - name: bindings/ue5/AliceSpace.h is the header of src/ffi.rs
+        run: |
+          cbindgen --config cbindgen.toml --verify --output bindings/ue5/AliceSpace.h src/ffi.rs
+          # the header declares every extern "C" function of src/ffi.rs (a header that
+          # lost them, or a source with none, compared nothing)
+          n_src=$(grep -c '^pub \(unsafe \)\?extern "C" fn' src/ffi.rs)
+          n_hdr=$(grep -cE '^(double|int32_t) alice_space_' bindings/ue5/AliceSpace.h)
+          echo "extern \"C\" functions: ${n_src} in src/ffi.rs, ${n_hdr} in the header"
+          test "${n_src}" -gt 0 && test "${n_src}" -eq "${n_hdr}"
+
   test:
     name: Test (public siblings)
     runs-on: ubuntu-latest
     env:
       # the passed-test count of the feature set below at the commit that set it;
       # fewer passed tests (a removed or skipped test, or none at all) is a failure
-      MIN_PASSED: "395"
+      MIN_PASSED: "401"
     steps:
       # cargo reads the manifest of every path dependency, optional ones included, so
       # each sibling is checked out next to this repository at a fixed commit with the

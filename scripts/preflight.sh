@@ -6,7 +6,7 @@
 # Run `--quick` before every push.
 #
 # usage: scripts/preflight.sh [--quick]   (--quick skips the test / bench suites)
-# generator rev fd42953c41f24e7bf3d7a247f664f39c6330c79d
+# generator rev 53b5498bfca8e6d099032eaee5ccb99ec580b7b3
 set -euo pipefail
 cd "$(dirname "$0")/.."
 # --- heavy slot (begin) ---
@@ -247,7 +247,10 @@ step() { printf '\n\033[1;34m== %s\033[0m\n' "$*"; }
 # touching the crate roots invalidates only this repo's fingerprints.
 relint() { git ls-files | grep -E '(^|/)src/(lib|main)\.rs$' | xargs -r touch; }
 need() { command -v "$1" >/dev/null 2>&1 || { echo "missing tool: $1 ($2)" >&2; exit 1; }; }
-has_toolchain() { rustup toolchain list | grep -q "^$1"; }
+has_toolchain() { grep -q "^$1" <<<"$(rustup toolchain list)"; }
+
+# Steps CI runs that this file cannot reproduce locally (they can only fail remotely):
+#   - ci.yml:ffi-header:Install cbindgen 0.29.4 (needs network / runner-only)
 
 need actionlint "brew install actionlint"
 
@@ -268,13 +271,43 @@ relint
 step "ci.yml / actionlint: actionlint"
 actionlint .github/workflows/*.yml
 
+step "ci.yml / ffi-header: bindings/ue5/AliceSpace.h is the header of src/ffi.rs"
+(
+  export CARGO_TERM_COLOR="always"
+  cbindgen --config cbindgen.toml --verify --output bindings/ue5/AliceSpace.h src/ffi.rs
+  # the header declares every extern "C" function of src/ffi.rs (a header that
+  # lost them, or a source with none, compared nothing)
+  n_src=$(grep -c '^pub \(unsafe \)\?extern "C" fn' src/ffi.rs)
+  n_hdr=$(grep -cE '^(double|int32_t) alice_space_' bindings/ue5/AliceSpace.h)
+  echo "extern \"C\" functions: ${n_src} in src/ffi.rs, ${n_hdr} in the header"
+  test "${n_src}" -gt 0 && test "${n_src}" -eq "${n_hdr}"
+)
+
 if [[ $quick -eq 1 ]]; then
   echo; echo "preflight --quick OK (test / bench suites skipped)"; exit 0
 fi
 
+step "ci.yml / nan-bits-arm64: third_body oracles (arm64)"
+(
+  export CARGO_TERM_COLOR="always" MIN_PASSED="3"
+  set -o pipefail
+  log="$(mktemp)"
+  cargo test --all-features --test third_body_oracle 2>&1 | tee "${log}"
+  passed=$(grep -E '^test result: ' "${log}" | awk '{s += $4} END {print s + 0}')
+  echo "passed: ${passed} (minimum ${MIN_PASSED})"
+  if grep -E '^test result: ' "${log}" | grep -vE '^test result: ok\. ' >/dev/null; then
+    echo "::error::a third_body oracle failed"
+    exit 1
+  fi
+  if [ "${passed}" -lt "${MIN_PASSED}" ]; then
+    echo "::error::${passed} tests passed, fewer than ${MIN_PASSED}"
+    exit 1
+  fi
+)
+
 step "ci.yml / test: Test (lib, integration, doctests)"
 (
-  export CARGO_TERM_COLOR="always" MIN_PASSED="395"
+  export CARGO_TERM_COLOR="always" MIN_PASSED="401"
   # the default shell has no pipefail: without it cargo's exit status is lost in the pipe
   set -o pipefail
   log="$(mktemp)"
