@@ -53,6 +53,7 @@ jobs:
     # the test job runs on x86_64, where an arithmetic NaN has the sign bit set; this leg
     # runs the canonical-NaN oracles where it does not, so the bits are pinned on both
     runs-on: macos-latest
+    timeout-minutes: 30
     env:
       MIN_PASSED: "3"
     steps:
@@ -77,6 +78,7 @@ jobs:
   ffi-header:
     name: FFI header (cbindgen, no drift)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
@@ -98,7 +100,7 @@ jobs:
     env:
       # the passed-test count of the feature set below at the commit that set it;
       # fewer passed tests (a removed or skipped test, or none at all) is a failure
-      MIN_PASSED: "401"
+      MIN_PASSED: "417"
     steps:
       # cargo reads the manifest of every path dependency, optional ones included, so
       # each sibling is checked out next to this repository at a fixed commit with the

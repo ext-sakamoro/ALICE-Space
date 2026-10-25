@@ -307,7 +307,7 @@ step "ci.yml / nan-bits-arm64: third_body oracles (arm64)"
 
 step "ci.yml / test: Test (lib, integration, doctests)"
 (
-  export CARGO_TERM_COLOR="always" MIN_PASSED="401"
+  export CARGO_TERM_COLOR="always" MIN_PASSED="417"
   # the default shell has no pipefail: without it cargo's exit status is lost in the pipe
   set -o pipefail
   log="$(mktemp)"

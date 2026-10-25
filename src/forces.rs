@@ -78,6 +78,15 @@ pub struct ForceModel<'a> {
     pub drag: Option<DragParams<'a>>,
 }
 
+/// A body whose position the model takes from an ephemeris.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Body {
+    /// The Sun (`alice_ephemeris::sunmoon::epv00`, 1900–2100).
+    Sun,
+    /// The Moon (`alice_ephemeris::sunmoon::moon98`, 1950–2050).
+    Moon,
+}
+
 /// Why a force could not be evaluated.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ForceError {
@@ -85,6 +94,9 @@ pub enum ForceError {
     Srp(SrpError),
     /// The drag (an input or the density).
     Drag(DragError),
+    /// The instant is outside the span of the ephemeris of a body the model
+    /// uses (the position there would be an extrapolation of the series).
+    OutOfEphemerisRange(Body),
 }
 
 impl core::fmt::Display for ForceError {
@@ -92,6 +104,12 @@ impl core::fmt::Display for ForceError {
         match self {
             Self::Srp(e) => write!(f, "radiation pressure: {e}"),
             Self::Drag(e) => write!(f, "drag: {e}"),
+            Self::OutOfEphemerisRange(Body::Sun) => {
+                f.write_str("the instant is outside the Sun's ephemeris (1900–2100)")
+            }
+            Self::OutOfEphemerisRange(Body::Moon) => {
+                f.write_str("the instant is outside the Moon's ephemeris (1950–2050)")
+            }
         }
     }
 }
@@ -131,10 +149,24 @@ impl ForceModel<'_> {
             ac = add(ac, ad);
         }
         let mut a = mtxv(&m, ac);
-        let sun = (self.sun_mu.is_some() || self.srp.is_some())
-            .then(|| scale(epv00(tt).sun_geocentric()[0], AU_KM));
-        let moon =
-            (self.moon_mu.is_some() || self.srp.is_some()).then(|| scale(moon98(tt)[0], AU_KM));
+        let sun = if self.sun_mu.is_some() || self.srp.is_some() {
+            let e = epv00(tt);
+            if !e.in_range {
+                return Err(ForceError::OutOfEphemerisRange(Body::Sun));
+            }
+            Some(scale(e.sun_geocentric()[0], AU_KM))
+        } else {
+            None
+        };
+        let moon = if self.moon_mu.is_some() || self.srp.is_some() {
+            let m = moon98(tt);
+            if !m.in_range {
+                return Err(ForceError::OutOfEphemerisRange(Body::Moon));
+            }
+            Some(scale(m.geocentric[0], AU_KM))
+        } else {
+            None
+        };
         if let (Some(mu), Some(s)) = (self.sun_mu, sun) {
             a = add(a, third_body(r, s, mu));
         }
