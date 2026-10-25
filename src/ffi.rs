@@ -2,6 +2,14 @@
 //!
 //! 12 extern "C" functions for Unity / UE5 / any C-compatible host.
 //!
+//! The functions that take buffers pass each one with its length (in `f64`
+//! elements) and return a status: [`ALICE_SPACE_OK`], or a nonzero error. They
+//! check every pointer and length, read every input and compute every output
+//! before writing; on a nonzero status nothing is written. A non-finite input
+//! (NaN or ±∞) or a non-finite result is an error, not a NaN in the output.
+//! The functions that return one `f64` take no buffer and return NaN for an
+//! input outside their domain, as the Rust functions do.
+//!
 //! Author: Moroya Sakamoto
 
 use crate::comm::CommLink;
@@ -9,6 +17,76 @@ use crate::constellation::WalkerConstellation;
 use crate::link_budget::LinkBudget;
 use crate::orbit::SpacecraftState;
 use crate::propagator::TwoBodyAccel;
+
+/// The call succeeded and the output buffer holds the result.
+pub const ALICE_SPACE_OK: i32 = 0;
+/// A buffer pointer is null; nothing was written.
+pub const ALICE_SPACE_ERR_NULL: i32 = 1;
+/// A buffer has another length than the function reads or writes; nothing was written.
+pub const ALICE_SPACE_ERR_LENGTH: i32 = 2;
+/// An input is NaN or infinite; nothing was written.
+pub const ALICE_SPACE_ERR_NON_FINITE_INPUT: i32 = 3;
+/// The inputs are finite but the result is not (for example a zero radius); nothing was written.
+pub const ALICE_SPACE_ERR_NON_FINITE_RESULT: i32 = 4;
+
+/// `N` values read from `ptr`, which the caller says holds `len`.
+///
+/// # Safety
+/// When `ptr` is not null and `len == N`, `ptr` must point to `N` readable `f64`.
+unsafe fn read<const N: usize>(ptr: *const f64, len: usize) -> Result<[f64; N], i32> {
+    if ptr.is_null() {
+        return Err(ALICE_SPACE_ERR_NULL);
+    }
+    if len != N {
+        return Err(ALICE_SPACE_ERR_LENGTH);
+    }
+    let mut v = [0.0; N];
+    for (i, x) in v.iter_mut().enumerate() {
+        *x = *ptr.add(i);
+    }
+    if v.iter().all(|x| x.is_finite()) {
+        Ok(v)
+    } else {
+        Err(ALICE_SPACE_ERR_NON_FINITE_INPUT)
+    }
+}
+
+/// Whether `ptr` can take `N` values, for a buffer the caller says holds `len`.
+fn writable<const N: usize>(ptr: *mut f64, len: usize) -> Result<(), i32> {
+    if ptr.is_null() {
+        return Err(ALICE_SPACE_ERR_NULL);
+    }
+    if len != N {
+        return Err(ALICE_SPACE_ERR_LENGTH);
+    }
+    Ok(())
+}
+
+fn finite(scalars: &[f64]) -> Result<(), i32> {
+    if scalars.iter().all(|x| x.is_finite()) {
+        Ok(())
+    } else {
+        Err(ALICE_SPACE_ERR_NON_FINITE_INPUT)
+    }
+}
+
+/// Writes `v` to `ptr` when every value is finite, else nothing.
+///
+/// # Safety
+/// `ptr` must have passed [`writable`] for `N`.
+unsafe fn write<const N: usize>(ptr: *mut f64, v: [f64; N]) -> i32 {
+    if !v.iter().all(|x| x.is_finite()) {
+        return ALICE_SPACE_ERR_NON_FINITE_RESULT;
+    }
+    for (i, x) in v.into_iter().enumerate() {
+        *ptr.add(i) = x;
+    }
+    ALICE_SPACE_OK
+}
+
+fn status(r: Result<i32, i32>) -> i32 {
+    r.unwrap_or_else(|e| e)
+}
 
 // ---------------------------------------------------------------------------
 // Orbit (4)
@@ -32,20 +110,25 @@ pub extern "C" fn alice_space_light_delay_s(distance_km: f64) -> f64 {
     crate::orbit::light_delay_s(distance_km)
 }
 
-/// Hohmann transfer delta-v. Writes dv1 and dv2 (km/s) to `out`.
+/// Hohmann transfer delta-v. Writes dv1 and dv2 (km/s) to `out` (`out_len` = 2)
+/// and returns a status ([`ALICE_SPACE_OK`] or an error, with nothing written).
 ///
 /// # Safety
-/// `out` must point to a buffer of at least 2 f64.
+/// When `out` is not null and `out_len` is 2, `out` must point to 2 writable f64.
 #[no_mangle]
 pub unsafe extern "C" fn alice_space_delta_v_hohmann(
     r1_km: f64,
     r2_km: f64,
     mu: f64,
     out: *mut f64,
-) {
-    let (dv1, dv2) = crate::orbit::delta_v_hohmann(r1_km, r2_km, mu);
-    *out = dv1;
-    *out.add(1) = dv2;
+    out_len: usize,
+) -> i32 {
+    status((|| {
+        writable::<2>(out, out_len)?;
+        finite(&[r1_km, r2_km, mu])?;
+        let (dv1, dv2) = crate::orbit::delta_v_hohmann(r1_km, r2_km, mu);
+        Ok(write(out, [dv1, dv2]))
+    })())
 }
 
 // ---------------------------------------------------------------------------
@@ -79,49 +162,61 @@ pub extern "C" fn alice_space_link_budget_margin(
 // Propagator (2)
 // ---------------------------------------------------------------------------
 
-/// Single RK4 propagation step. Reads `pos[3]` + `vel[3]` from `state_in`,
-/// writes new `pos[3]` + `vel[3]` to `state_out`.
+/// Single RK4 propagation step. Reads `[px, py, pz, vx, vy, vz]` from
+/// `state_in` (`state_in_len` = 6), writes the new state in the same order to
+/// `state_out` (`state_out_len` = 6) and returns a status ([`ALICE_SPACE_OK`] or
+/// an error, with nothing written). `state_in` and `state_out` may be the same
+/// buffer: every input is read before the first write.
 ///
 /// # Safety
-/// `state_in` must point to 6 contiguous f64 `[px, py, pz, vx, vy, vz]`.
-/// `state_out` must point to a buffer of at least 6 f64.
+/// When the pointers are not null and the lengths are 6, `state_in` must point
+/// to 6 readable f64 and `state_out` to 6 writable f64.
 #[no_mangle]
 pub unsafe extern "C" fn alice_space_rk4_single(
     state_in: *const f64,
+    state_in_len: usize,
     mu: f64,
     dt_s: f64,
     state_out: *mut f64,
-) {
-    let pos = [*state_in, *state_in.add(1), *state_in.add(2)];
-    let vel = [*state_in.add(3), *state_in.add(4), *state_in.add(5)];
-    let sc = SpacecraftState {
-        position_km: pos,
-        velocity_km_s: vel,
-        timestamp_ns: 0,
-        fuel_kg: 0.0,
-    };
-    let result = crate::propagator::propagate_rk4_single(&sc, mu, dt_s);
-    *state_out = result.position_km[0];
-    *state_out.add(1) = result.position_km[1];
-    *state_out.add(2) = result.position_km[2];
-    *state_out.add(3) = result.velocity_km_s[0];
-    *state_out.add(4) = result.velocity_km_s[1];
-    *state_out.add(5) = result.velocity_km_s[2];
+    state_out_len: usize,
+) -> i32 {
+    status((|| {
+        writable::<6>(state_out, state_out_len)?;
+        let s = read::<6>(state_in, state_in_len)?;
+        finite(&[mu, dt_s])?;
+        let sc = SpacecraftState {
+            position_km: [s[0], s[1], s[2]],
+            velocity_km_s: [s[3], s[4], s[5]],
+            timestamp_ns: 0,
+            fuel_kg: 0.0,
+        };
+        let r = crate::propagator::propagate_rk4_single(&sc, mu, dt_s);
+        let (p, v) = (r.position_km, r.velocity_km_s);
+        Ok(write(state_out, [p[0], p[1], p[2], v[0], v[1], v[2]]))
+    })())
 }
 
-/// Two-body gravitational acceleration. Writes `[ax, ay, az]` to `out`.
+/// Two-body gravitational acceleration. Reads `[x, y, z]` from `r` (`r_len` =
+/// 3), writes `[ax, ay, az]` to `out` (`out_len` = 3) and returns a status
+/// ([`ALICE_SPACE_OK`] or an error, with nothing written).
 ///
 /// # Safety
-/// `r` must point to 3 contiguous f64 `[x, y, z]`.
-/// `out` must point to a buffer of at least 3 f64.
+/// When the pointers are not null and the lengths are 3, `r` must point to 3
+/// readable f64 and `out` to 3 writable f64.
 #[no_mangle]
-pub unsafe extern "C" fn alice_space_two_body_accel(r: *const f64, mu: f64, out: *mut f64) {
-    let pos = [*r, *r.add(1), *r.add(2)];
-    let accel = TwoBodyAccel::new(mu);
-    let a = accel.acceleration(&pos);
-    *out = a[0];
-    *out.add(1) = a[1];
-    *out.add(2) = a[2];
+pub unsafe extern "C" fn alice_space_two_body_accel(
+    r: *const f64,
+    r_len: usize,
+    mu: f64,
+    out: *mut f64,
+    out_len: usize,
+) -> i32 {
+    status((|| {
+        writable::<3>(out, out_len)?;
+        let pos = read::<3>(r, r_len)?;
+        finite(&[mu])?;
+        Ok(write(out, TwoBodyAccel::new(mu).acceleration(&pos)))
+    })())
 }
 
 // ---------------------------------------------------------------------------
@@ -191,7 +286,8 @@ mod tests {
     #[test]
     fn test_delta_v_hohmann_ffi() {
         let mut out = [0.0f64; 2];
-        unsafe { alice_space_delta_v_hohmann(6578.0, 42164.0, MU_EARTH, out.as_mut_ptr()) };
+        let s = unsafe { alice_space_delta_v_hohmann(6578.0, 42164.0, MU_EARTH, out.as_mut_ptr(), 2) };
+        assert_eq!(s, ALICE_SPACE_OK);
         assert!(out[0] > 0.0);
         assert!(out[1] > 0.0);
     }
@@ -212,9 +308,10 @@ mod tests {
     fn test_rk4_single_ffi() {
         let state_in: [f64; 6] = [6778.0, 0.0, 0.0, 0.0, 7.67, 0.0];
         let mut state_out = [0.0f64; 6];
-        unsafe {
-            alice_space_rk4_single(state_in.as_ptr(), MU_EARTH, 60.0, state_out.as_mut_ptr());
-        }
+        let s = unsafe {
+            alice_space_rk4_single(state_in.as_ptr(), 6, MU_EARTH, 60.0, state_out.as_mut_ptr(), 6)
+        };
+        assert_eq!(s, ALICE_SPACE_OK);
         let r = sqrt64(
             (state_out[0] * state_out[0])
                 + state_out[1] * state_out[1]
@@ -227,7 +324,8 @@ mod tests {
     fn test_two_body_accel_ffi() {
         let r: [f64; 3] = [6778.0, 0.0, 0.0];
         let mut out = [0.0f64; 3];
-        unsafe { alice_space_two_body_accel(r.as_ptr(), MU_EARTH, out.as_mut_ptr()) };
+        let s = unsafe { alice_space_two_body_accel(r.as_ptr(), 3, MU_EARTH, out.as_mut_ptr(), 3) };
+        assert_eq!(s, ALICE_SPACE_OK);
         assert!(out[0] < 0.0); // acceleration toward center
     }
 

@@ -14,19 +14,27 @@ namespace Alice.Space
         private const string Lib = "alice_space";
 #endif
 
+        // The functions that take arrays pass each with its length and return a status;
+        // on any status other than Ok nothing is written to the output array.
+        public const int Ok = 0;
+        public const int ErrNull = 1;
+        public const int ErrLength = 2;
+        public const int ErrNonFiniteInput = 3;
+        public const int ErrNonFiniteResult = 4;
+
         // Orbit
         [DllImport(Lib)] public static extern double alice_space_orbital_period(double semiMajorAxisKm, double mu);
         [DllImport(Lib)] public static extern double alice_space_orbital_velocity(double rKm, double aKm, double mu);
         [DllImport(Lib)] public static extern double alice_space_light_delay_s(double distanceKm);
-        [DllImport(Lib)] public static extern void alice_space_delta_v_hohmann(double r1Km, double r2Km, double mu, double[] outDv);
+        [DllImport(Lib)] public static extern int alice_space_delta_v_hohmann(double r1Km, double r2Km, double mu, double[] outDv, UIntPtr outDvLen);
 
         // LinkBudget
         [DllImport(Lib)] public static extern double alice_space_friis_path_loss_db(double distanceKm, double frequencyGhz);
         [DllImport(Lib)] public static extern double alice_space_link_budget_margin(double distanceKm, double frequencyGhz, double dataRateBps);
 
         // Propagator
-        [DllImport(Lib)] public static extern void alice_space_rk4_single(double[] stateIn, double mu, double dtS, double[] stateOut);
-        [DllImport(Lib)] public static extern void alice_space_two_body_accel(double[] r, double mu, double[] outAccel);
+        [DllImport(Lib)] public static extern int alice_space_rk4_single(double[] stateIn, UIntPtr stateInLen, double mu, double dtS, double[] stateOut, UIntPtr stateOutLen);
+        [DllImport(Lib)] public static extern int alice_space_two_body_accel(double[] r, UIntPtr rLen, double mu, double[] outAccel, UIntPtr outAccelLen);
 
         // Comm
         [DllImport(Lib)] public static extern double alice_space_comm_latency_s(double distanceKm);
