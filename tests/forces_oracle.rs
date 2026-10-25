@@ -174,3 +174,63 @@ fn propagation_matches_the_independent_reference() {
     }
     assert_eq!(compared, 47);
 }
+
+/// A model at an epoch outside the span of an ephemeris it uses is refused, not
+/// answered with an extrapolated position: the Sun (`epv00`, 1900–2100) when the
+/// Sun's perturbation or the radiation pressure is on, the Moon (`moon98`,
+/// 1950–2100) when the Moon's perturbation or the radiation pressure is on. A
+/// model that uses neither body takes any epoch.
+#[test]
+fn an_epoch_outside_an_ephemeris_span_is_refused() {
+    use alice_space::forces::{Body, ForceError};
+    let dens = density;
+    let r = [7_000.0, 0.0, 0.0];
+    let v = [0.0, 7.5, 0.0];
+    let at = |jd1: f64, sun: bool, moon: bool, srp: bool| {
+        let c = &cases()[0];
+        let mut m = model(c, &dens);
+        m.epoch = Jd2 { jd1, jd2: 0.0 };
+        m.sun_mu = if sun { m.sun_mu } else { None };
+        m.moon_mu = if moon { m.moon_mu } else { None };
+        m.srp = if srp {
+            Some(SrpParams {
+                cr: 1.5,
+                area_to_mass: 0.01,
+            })
+        } else {
+            None
+        };
+        m.drag = None;
+        m.acceleration(0.0, r, v)
+    };
+    // 2026: inside both spans
+    assert!(at(2_461_100.5, true, true, true).is_ok());
+    // 2300: outside the Sun's span (and the Moon's)
+    assert_eq!(
+        at(2_561_118.5, true, false, false),
+        Err(ForceError::OutOfEphemerisRange(Body::Sun))
+    );
+    assert_eq!(
+        at(2_561_118.5, false, true, false),
+        Err(ForceError::OutOfEphemerisRange(Body::Moon))
+    );
+    assert_eq!(
+        at(2_561_118.5, false, false, true),
+        Err(ForceError::OutOfEphemerisRange(Body::Sun))
+    );
+    // 1925: inside the Sun's span, outside the Moon's
+    assert!(at(2_424_151.5, true, false, false).is_ok());
+    assert_eq!(
+        at(2_424_151.5, true, true, false),
+        Err(ForceError::OutOfEphemerisRange(Body::Moon))
+    );
+    // 2075: inside both
+    assert!(at(2_478_938.5, true, true, true).is_ok());
+    // neither body: no ephemeris to be outside of
+    assert!(at(2_561_118.5, false, false, false).is_ok());
+    // a non-finite epoch is outside every span
+    assert_eq!(
+        at(f64::NAN, true, false, false),
+        Err(ForceError::OutOfEphemerisRange(Body::Sun))
+    );
+}
