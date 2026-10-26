@@ -19,7 +19,7 @@ alice-ephemeris = { git = "https://github.com/ext-sakamoro/ALICE-Ephemeris", rev
 # without the default `fork` and `timeout` features (rusty-fork and wait-timeout do
 # not build for wasm32-wasip1, where the SGP4 golden runs); no test uses them
 proptest = { version = "1.4", default-features = false, features = ["std", "bit-set"] }
-sha2 = "0.10"
+sha2 = "0.11"
 
 [lib]
 name = "alice_space"
