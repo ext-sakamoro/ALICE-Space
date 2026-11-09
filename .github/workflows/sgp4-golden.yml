@@ -32,8 +32,7 @@ on:
 env:
   CARGO_TERM_COLOR: always
   # the wasmtime release the wasm32 golden runs under; the check step fails
-  # when the installed binary reports another version (not WASMTIME_VERSION:
-  # the setup action exports that name with the full version line)
+  # when the installed binary reports another version
   WASMTIME_PIN: "50.0.0"
 
 jobs:
@@ -106,19 +105,40 @@ jobs:
         if: matrix.target != ''
         shell: bash
         run: rustup target add "${{ matrix.target }}"
-      # the install script read its version from an API call that can fail and
-      # still exit 0, leaving no wasmtime; the official action retries
-      - name: Install wasmtime
+      # the release tarball is checked against its sha256 and the download is
+      # retried; when the host keeps failing, cargo builds the same release
+      - name: Cache wasmtime
         if: matrix.target != ''
-        uses: bytecodealliance/actions/wasmtime/setup@v1
+        id: wasmtime-cache
+        uses: actions/cache@v6
         with:
-          version: ${{ env.WASMTIME_PIN }}
+          path: ~/.wasmtime-${{ env.WASMTIME_PIN }}
+          key: wasmtime-${{ env.WASMTIME_PIN }}-x86_64-linux
+      - name: Install wasmtime
+        if: matrix.target != '' && steps.wasmtime-cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          dir="$HOME/.wasmtime-${WASMTIME_PIN}"
+          mkdir -p "$dir"
+          tarball="$RUNNER_TEMP/wasmtime.tar.xz"
+          url="https://github.com/bytecodealliance/wasmtime/releases/download/v${WASMTIME_PIN}/wasmtime-v${WASMTIME_PIN}-x86_64-linux.tar.xz"
+          if curl -fsSL --retry 8 --retry-delay 15 --retry-all-errors -o "$tarball" "$url" \
+              && [ -s "$tarball" ] \
+              && echo "77c19ee0437991f9ac7837b9c269d9c7076744f85dad263fea5214cc2723c7ff  $tarball" | sha256sum -c -; then
+            tar -xJf "$tarball" -C "$dir" --strip-components=1
+          else
+            echo "::warning::release download failed, building wasmtime-cli ${WASMTIME_PIN} with cargo"
+            cargo install wasmtime-cli --version "${WASMTIME_PIN}" --locked --root "$RUNNER_TEMP/wasmtime-cli"
+            cp "$RUNNER_TEMP/wasmtime-cli/bin/wasmtime" "$dir/wasmtime"
+          fi
       - name: Check that the pinned wasmtime runs
         if: matrix.target != ''
         shell: bash
         run: |
           set -euo pipefail
-          got="$(wasmtime --version)"
+          echo "$HOME/.wasmtime-${WASMTIME_PIN}" >> "$GITHUB_PATH"
+          got="$("$HOME/.wasmtime-${WASMTIME_PIN}/wasmtime" --version)"
           echo "${got}"
           # "wasmtime 50.0.0 (ebe5e8df1 2026-10-20)": the second field
           if [ "$(echo "${got}" | awk '{print $2}')" != "${WASMTIME_PIN}" ]; then

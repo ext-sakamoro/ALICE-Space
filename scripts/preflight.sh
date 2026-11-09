@@ -6,7 +6,7 @@
 # Run `--quick` before every push.
 #
 # usage: scripts/preflight.sh [--quick]   (--quick skips the test / bench suites)
-# generator rev e2bb3de7ed4ef9138b566d6274e62d4557010dd9
+# generator rev 3144a7f8709082360b591d89edfb2344eeb3603d
 set -euo pipefail
 cd "$(dirname "$0")/.."
 # --- heavy slot (begin) ---
@@ -564,12 +564,21 @@ step() { printf '\n\033[1;34m== %s\033[0m\n' "$*"; }
 # touching the crate roots invalidates only this repo's fingerprints.
 relint() { git ls-files | grep -E '(^|/)src/(lib|main)\.rs$' | xargs -r touch; }
 need() { command -v "$1" >/dev/null 2>&1 || { echo "missing tool: $1 ($2)" >&2; exit 1; }; }
-has_toolchain() { grep -q "^$1" <<<"$(rustup toolchain list)"; }
 
 # Steps CI runs that this file cannot reproduce locally (they can only fail remotely):
 #   - ci.yml:ffi-header:Install cbindgen 0.29.4 (needs network / runner-only)
+#   - public-text.yml:public-text: uses actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 (an action this file cannot run)
+#   - public-text.yml:public-text:Public text (tree at HEAD, then the pushed commits) (no cargo / grep)
+#   - sgp4-golden.yml:changes:run (reads BEFORE, EVENT, REF, a value only the runner has)
+#   - sgp4-golden.yml:golden:Add the wasm target (no cargo / grep)
+#   - sgp4-golden.yml:golden:Install wasmtime (its `if:` runs on what happened earlier on the runner)
+#   - sgp4-golden.yml:golden:Check that the pinned wasmtime runs (no cargo / grep)
+#   - sgp4-golden.yml:golden:Add the wasm target [target=wasm32-wasip1] (no cargo / grep)
+#   - sgp4-golden.yml:golden:Install wasmtime [target=wasm32-wasip1] (its `if:` runs on what happened earlier on the runner)
+#   - sgp4-golden.yml:golden:Check that the pinned wasmtime runs [target=wasm32-wasip1] (no cargo / grep)
 
 need actionlint "brew install actionlint"
+command -v python >/dev/null 2>&1 || python() { python3 "$@"; }
 
 step "ci.yml / fmt: Check formatting"
 (
@@ -610,6 +619,12 @@ step "ci.yml / ffi-header: bindings/ue5/AliceSpace.h is the header of src/ffi.rs
   echo "extern \"C\" functions: ${n_src} in src/ffi.rs, ${n_hdr} in the header"
   test "${n_src}" -gt 0 && test "${n_src}" -eq "${n_hdr}"
 )
+)
+
+step "public-text.yml / public-text: Tests of scripts/public_text.sh (no network)"
+(
+  gh_step public-text.yml.public-text
+( python scripts/test_public_text.py )
 )
 
 if [[ $quick -eq 1 ]]; then
@@ -655,6 +670,76 @@ step "ci.yml / test: Test (lib, integration, doctests)"
   fi
   if [ "${passed}" -lt "${MIN_PASSED}" ]; then
     echo "::error::${passed} tests passed, fewer than ${MIN_PASSED}"
+    exit 1
+  fi
+)
+)
+
+step "sgp4-golden.yml / golden: Run the golden and the oracle it pins"
+(
+  gh_step sgp4-golden.yml.golden
+(
+  export CARGO_TERM_COLOR="always" WASMTIME_PIN="50.0.0" CARGO_TARGET_WASM32_WASIP1_RUNNER="wasmtime --dir=."
+  set -o pipefail
+  target_args=()
+  if [ -n "" ]; then
+    target_args=(--target "")
+  fi
+  log="$(mktemp)"
+  cargo test --release "${target_args[@]}" --test sgp4_vallado --test tle_assumed_decimal --test law_ids 2>&1 | tee "${log}"
+  # the walk's bit golden, the Vallado oracle, the decimal oracle and the Laws'
+  # digests must each have run and passed: a filter that matched nothing would
+  # report "0 passed" (the Law digests are the outputs' bits, so they must agree on
+  # every target, NaN included)
+  for name in the_walk_gives_the_same_bits_on_every_target \
+              every_state_matches_vallados_reference_output \
+              assumed_decimal_fields_decode_to_the_correctly_rounded_double \
+              reference_grids_are_frozen reference_digests semantics_ids; do
+    if ! grep -E "^test ${name} \.\.\. ok" "${log}" >/dev/null; then
+      echo "::error::${name} did not run and pass"
+      exit 1
+    fi
+  done
+  passed=$(grep -E '^test result: ' "${log}" | awk '{s += $4} END {print s + 0}')
+  failed=$(grep -E '^test result: ' "${log}" | awk '{s += $6} END {print s + 0}')
+  echo "passed: ${passed}, failed: ${failed}"
+  if [ "${passed}" -lt 9 ] || [ "${failed}" -ne 0 ]; then
+    echo "::error::expected at least 9 passed and 0 failed"
+    exit 1
+  fi
+)
+)
+
+step "sgp4-golden.yml / golden: Run the golden and the oracle it pins [target=wasm32-wasip1]"
+(
+  gh_step sgp4-golden.yml.golden
+(
+  export CARGO_TERM_COLOR="always" WASMTIME_PIN="50.0.0" CARGO_TARGET_WASM32_WASIP1_RUNNER="wasmtime --dir=."
+  set -o pipefail
+  target_args=()
+  if [ -n "wasm32-wasip1" ]; then
+    target_args=(--target "wasm32-wasip1")
+  fi
+  log="$(mktemp)"
+  cargo test --release "${target_args[@]}" --test sgp4_vallado --test tle_assumed_decimal --test law_ids 2>&1 | tee "${log}"
+  # the walk's bit golden, the Vallado oracle, the decimal oracle and the Laws'
+  # digests must each have run and passed: a filter that matched nothing would
+  # report "0 passed" (the Law digests are the outputs' bits, so they must agree on
+  # every target, NaN included)
+  for name in the_walk_gives_the_same_bits_on_every_target \
+              every_state_matches_vallados_reference_output \
+              assumed_decimal_fields_decode_to_the_correctly_rounded_double \
+              reference_grids_are_frozen reference_digests semantics_ids; do
+    if ! grep -E "^test ${name} \.\.\. ok" "${log}" >/dev/null; then
+      echo "::error::${name} did not run and pass"
+      exit 1
+    fi
+  done
+  passed=$(grep -E '^test result: ' "${log}" | awk '{s += $4} END {print s + 0}')
+  failed=$(grep -E '^test result: ' "${log}" | awk '{s += $6} END {print s + 0}')
+  echo "passed: ${passed}, failed: ${failed}"
+  if [ "${passed}" -lt 9 ] || [ "${failed}" -ne 0 ]; then
+    echo "::error::expected at least 9 passed and 0 failed"
     exit 1
   fi
 )
