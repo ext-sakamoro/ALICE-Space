@@ -1,7 +1,7 @@
 //! The Laws' semantics identifiers (src/law.rs).
 //!
 //! Each identifier is the SHA-256 of the Law's name, its data, the
-//! alice-det-math `SEMANTICS_ID` where it evaluates `f64` transcendentals, and
+//! identifier of each alice-det-math function it calls (`law::DET_MATH_PINS`) where it evaluates `f64` transcendentals, and
 //! the digest of its outputs over a **frozen reference grid**. The rule: the
 //! identifier moves if and only if the Law's inputs or its outputs on the
 //! reference grid move. The grids' inputs are pinned by their own SHA-256 and
@@ -59,7 +59,7 @@ const REFERENCE_ECLIPSE_INPUTS: (&str, usize) = (
 
 /// Output digests over the reference grids (folded into the identifiers).
 const REFERENCE_SGP4_AFSPC_WGS72: &str =
-    "7b7fc3e229099a579e331bbf2168ddcd9b8491a82bd6617bc6b80d8d7ab26398";
+    "deebbb0eaba9f6c2bd5556f47d82f47c8fca9ba3fb97731e17ab485368424823";
 const REFERENCE_ODM_INTERP_LAGRANGE: &str =
     "f39757dfd592d4cf3432e82a504ec2a0fa9b984630bb0e78af3877e93bf2ae09";
 const REFERENCE_ODM_INTERP_HERMITE: &str =
@@ -676,6 +676,28 @@ fn reference_digests() {
     );
 }
 
+/// The `(name, identifier)` entries of `law::DET_MATH_PINS`, each as the name
+/// length (4 bytes big-endian), the name and the 32 identifier bytes.
+fn det_math() -> Vec<u8> {
+    let mut out = Vec::new();
+    for (name, digest) in law::DET_MATH_PINS {
+        out.extend((name.len() as u32).to_be_bytes());
+        out.extend(name.as_bytes());
+        out.extend(digest);
+    }
+    out
+}
+
+#[test]
+fn every_det_math_entry_is_the_resolved_function() {
+    assert!(!law::DET_MATH_PINS.is_empty());
+    assert_eq!(law::DET_MATH_FUNCTIONS.len(), law::DET_MATH_PINS.len());
+    for (want, (name, digest)) in law::DET_MATH_FUNCTIONS.iter().zip(law::DET_MATH_PINS) {
+        assert_eq!(want, name);
+        assert_eq!(*digest, alice_det_math::function_pin(name), "{name}");
+    }
+}
+
 #[test]
 fn semantics_ids() {
     // WGS-72 (mu, Earth radius, J2, J3, J4) as the propagator uses them
@@ -690,18 +712,18 @@ fn semantics_ids() {
             -1.655_97e-6,
         ],
     );
-    sgp4.extend(alice_det_math::SEMANTICS_ID);
+    sgp4.extend(det_math());
     // the window rule (no transcendental: + − × ÷ only)
     let window = b"centred window: even counts split evenly, odd counts on the nearest node; times relative to the first node".to_vec();
     let mut eclipse = Vec::new();
     bits(&mut eclipse, &[SUN_RADIUS_KM]);
-    eclipse.extend(alice_det_math::SEMANTICS_ID);
+    eclipse.extend(det_math());
     // the recursion (no transcendental but the square root)
     let mut zonal =
         b"Bonnet recursion; terms summed from J2 up; a = -(mu/r^2)(radial r^ + axial z^)".to_vec();
-    zonal.extend(alice_det_math::SEMANTICS_ID);
+    zonal.extend(det_math());
     let mut third = b"Battin: q = r.(r - 2s)/|s|^2, f(q) = q(3 + 3q + q^2)/(1 + (1+q)^(3/2)), a = -mu (r + f s)/|r - s|^3".to_vec();
-    third.extend(alice_det_math::SEMANTICS_ID);
+    third.extend(det_math());
     // the irradiance, c and the au, and the shadow Law it scales by
     let mut srp_data = Vec::new();
     bits(
@@ -713,9 +735,9 @@ fn semantics_ids() {
         ],
     );
     srp_data.extend(law::ECLIPSE_CONICAL_ID);
-    srp_data.extend(alice_det_math::SEMANTICS_ID);
+    srp_data.extend(det_math());
     let mut drag_data = b"a = -1/2 rho Cd (A/m) |v - w x r| (v - w x r), km and km/s".to_vec();
-    drag_data.extend(alice_det_math::SEMANTICS_ID);
+    drag_data.extend(det_math());
     let cases = [
         (
             law::SGP4_AFSPC_WGS72,

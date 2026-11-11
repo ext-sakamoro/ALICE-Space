@@ -133,8 +133,8 @@ impl ForceModel<'_> {
         let mut a = mtxv(&m, ac);
         let sun = (self.sun_mu.is_some() || self.srp.is_some())
             .then(|| scale(epv00(tt).sun_geocentric()[0], AU_KM));
-        let moon =
-            (self.moon_mu.is_some() || self.srp.is_some()).then(|| scale(moon98(tt)[0], AU_KM));
+        let moon = (self.moon_mu.is_some() || self.srp.is_some())
+            .then(|| scale(moon98(tt).geocentric[0], AU_KM));
         if let (Some(mu), Some(s)) = (self.sun_mu, sun) {
             a = add(a, third_body(r, s, mu));
         }

@@ -239,7 +239,7 @@ fn every_state_matches_vallados_reference_output() {
 /// SHA-256 of the bits of every state of the walk (t, position, velocity as
 /// little-endian `f64`). Every transcendental goes through alice-det-math, so
 /// the walk gives these bits on every target.
-const WALK_BITS_SHA256: &str = "0a767b6dd442e8eedb0a0923bcfa38a71f709c010223ba46bd4868f2ffb980ff";
+const WALK_BITS_SHA256: &str = "6818fe1cecdfe00ec9f0ed7859d082f72355e9b621a6b26a815accc36b296314";
 
 #[test]
 fn the_walk_gives_the_same_bits_on_every_target() {
